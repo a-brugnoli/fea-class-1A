@@ -1,4 +1,4 @@
-from scipy.sparse.linalg import spsolve
+from scipy.linalg import solve
 import numpy as np
 
 def newmark(q0, v0, M, K, dt, nt, gamma=0.5, beta=0.25):
@@ -12,13 +12,13 @@ def newmark(q0, v0, M, K, dt, nt, gamma=0.5, beta=0.25):
 
     q_old = q0
     v_old = v0
-    a_old = spsolve(M, - K @ q_old)
+    a_old = solve(M, - K @ q_old)
 
     A_newmark = (M + beta * dt**2 * K)
 
     for n in range(nt):
         b = - K @ (q_old + dt * v_old + (0.5 - beta) * dt**2 * a_old)
-        a_new = spsolve(A_newmark, b)
+        a_new = solve(A_newmark, b)
 
         v_new = v_old + dt * ((1 - gamma) * a_old + gamma * a_new)
         q_new = q_old + dt * v_old + 0.5*dt**2*((1 - 2*beta)*a_old + 2*beta*a_new)

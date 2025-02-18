@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import lil_matrix
+import scipy.linalg as sla
 from time_integration import newmark
-from post_processing import plot_vertical_displacement
+from post_processing import configure_matplotlib, plot_vertical_displacement, animate_mode
+configure_matplotlib()
+from restore_data import restore_data
 
-
-class BeamVibration:
+class Beam:
     def __init__(self, length, num_elements, E, I, rho, A):
         """
         Initialize beam vibration analysis parameters
@@ -26,62 +27,57 @@ class BeamVibration:
         self.A = A
         
         # Element length
-        self.dx = length / num_elements
+        self.el_size = length / num_elements
         
     def generate_stiffness_matrix(self):
         """Generate global stiffness matrix using finite element method"""
         k_local = np.array([
-            [12, 6*self.dx, -12, 6*self.dx],
-            [6*self.dx, 4*self.dx**2, -6*self.dx, 2*self.dx**2],
-            [-12, -6*self.dx, 12, -6*self.dx],
-            [6*self.dx, 2*self.dx**2, -6*self.dx, 4*self.dx**2]
-        ]) * (self.E * self.I / (self.dx**3))
+            [12, 6*self.el_size, -12, 6*self.el_size],
+            [6*self.el_size, 4*self.el_size**2, -6*self.el_size, 2*self.el_size**2],
+            [-12, -6*self.el_size, 12, -6*self.el_size],
+            [6*self.el_size, 2*self.el_size**2, -6*self.el_size, 4*self.el_size**2]
+        ]) * self.E * self.I / self.el_size**3
         
         # Assemble global stiffness matrix
-        K = lil_matrix((2*(self.num_elements+1), 2*(self.num_elements+1)))
+        K = np.zeros((2*(self.num_elements+1), 2*(self.num_elements+1)))
         for i in range(self.num_elements):
-            idx = [2*i, 2*i+1, 2*i+2, 2*i+3]
-            K[np.ix_(idx, idx)] += k_local
+            i_el = [2*i, 2*i+1, 2*i+2, 2*i+3]
+            K[np.ix_(i_el, i_el)] += k_local
         
-        
-        return K.tocsc()
+        return K
     
 
     def generate_mass_matrix(self):
         """Generate global mass matrix using finite element method"""
         m_local = np.array([
-            [156, 22*self.dx, 54, -13*self.dx],
-            [22*self.dx, 4*self.dx**2, 13*self.dx, -3*self.dx**2],
-            [54, 13*self.dx, 156, -22*self.dx],
-            [-13*self.dx, -3*self.dx**2, -22*self.dx, 4*self.dx**2]
-        ]) * ((self.rho * self.A * self.dx) / 420)
+            [156, 22*self.el_size, 54, -13*self.el_size],
+            [22*self.el_size, 4*self.el_size**2, 13*self.el_size, -3*self.el_size**2],
+            [54, 13*self.el_size, 156, -22*self.el_size],
+            [-13*self.el_size, -3*self.el_size**2, -22*self.el_size, 4*self.el_size**2]
+        ]) * self.rho * self.A * self.el_size / 420
         
         # Assemble global mass matrix
-        M = lil_matrix((2*(self.num_elements+1), 2*(self.num_elements+1)))
+        M = np.zeros((2*(self.num_elements+1), 2*(self.num_elements+1)))
         for i in range(self.num_elements):
-            idx = [2*i, 2*i+1, 2*i+2, 2*i+3]
-            M[np.ix_(idx, idx)] += m_local
+            i_el = [2*i, 2*i+1, 2*i+2, 2*i+3]
+            M[np.ix_(i_el, i_el)] += m_local
         
-        return M.tocsc()
+        return M
     
     
-    def apply_boundary_conditions(self, K, M, q0, v0, dofs):
-        """Apply simply supported beam boundary conditions"""
+    def apply_boundary_conditions(self, K, M, bc_dofs):
+        """Apply boundary conditions"""
         # Fix first and last degrees of freedom
         mask_rows = np.ones(M.shape[0], dtype=bool)
-        mask_rows[dofs] = False
+        mask_rows[bc_dofs] = False
 
         K_red = K[mask_rows, :][:, mask_rows]
         M_red = M[mask_rows, :][:, mask_rows]
 
-        q0_red = q0[mask_rows]
-        v0_red = v0[mask_rows]
-        
-        return K_red, M_red, q0_red, v0_red
+        return K_red, M_red
     
-    
-    
-# Test
+
+   
 if __name__ == "__main__":
     # Beam parameters
     length = 1.0  # beam length
@@ -89,41 +85,65 @@ if __name__ == "__main__":
     I = 1.0e-6  # Moment of inertia (m^4)
     rho = 7800  # Density (kg/m^3)
     A = 1.0e-4  # Cross-sectional area (m^2)
-    
-    num_elements = 10
+
+    num_elements = 20
     coordinates = np.linspace(0, length, num_elements + 1)
     num_dofs = 2*len(coordinates)
 
     # Create beam analysis object
-    beam = BeamVibration(length, num_elements, E, I, rho, A)
+    beam = Beam(length, num_elements, E, I, rho, A)
     
     # Generate matrices
     K = beam.generate_stiffness_matrix()
     M = beam.generate_mass_matrix()
+
+    # dofs_bcs = [0, 2*num_elements]
+    dofs_bcs = [0, 1]
     
-    exp_initial_displacement = lambda x: np.sin(np.pi*x/length)
-    exp_initial_rotation = lambda x: np.pi/length*np.cos(np.pi*x/length)
-
-    q0 = np.zeros(num_dofs)
-    v0 = np.zeros(num_dofs)
-
-    q0[0::2] = exp_initial_displacement(coordinates)
-    q0[1::2] = exp_initial_rotation(coordinates)
-
     # Apply boundary conditions
-    dofs_bcs = [0, 2*num_elements]
-    K_reduced, M_reduced, q0_red, v0_red = beam.apply_boundary_conditions(K, M, q0, v0, dofs_bcs)
+    K_reduced, M_reduced = beam.apply_boundary_conditions(K, M, dofs_bcs)
+    omega_squared, modes_red = sla.eigh(K_reduced, b = M_reduced)
+    omega_vec = np.sqrt(np.real(omega_squared))
 
-    # Solve dynamic response
-    T_end = 10  # Total simulation time
-    dt = 0.01  # Time step
-    n_times = int(np.ceil(T_end/dt))
-    q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
+    eigenvectors = restore_data(modes_red, dofs_bcs)
+
+    n_modes = 4
+    for ii in range(n_modes):
+        plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
+        plt.legend()
+
+    num_mode = 1
+    mode_shape = eigenvectors[::2, num_mode]
+    omega_mode = omega_vec[num_mode]
+
+    animation = animate_mode(coordinates, mode_shape, omega_mode)    
 
 
-    n_rows_red = q_array_red.shape[0]
-    q_array = np.insert(q_array_red, [0, n_rows_red-1], 0, axis=0)
+    # # Initial conditions corresponding to first mode
+    # q0 = np.zeros(num_dofs)
+    # v0 = np.zeros(num_dofs)
+    
+    # q0[::2] = eigenvectors[0::2, num_mode]
+    # q0[1::2] = eigenvectors[1::2, num_mode]
 
-    # Post-processing
-    plot_vertical_displacement(dt, coordinates, q_array)
+    # q0_red = np.delete(q0, dofs_bcs)
+    # v0_red = np.delete(v0, dofs_bcs)
 
+    # This part is to be done by the students:
+    # - declare dofs subjected to bcs
+    # - extract modes
+    # - plot them
+    # For clamped bcs and for free bcs
+
+
+    # # Solve dynamic response
+    # T_end = 1  # Total simulation time
+    # dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
+    # n_times = int(np.ceil(T_end/dt))
+    # q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
+
+    # q_array = restore_data(q_array_red, dofs_bcs)
+    # # Post-processing
+    # animation = plot_vertical_displacement(dt, coordinates, q_array)
+
+    plt.show()
