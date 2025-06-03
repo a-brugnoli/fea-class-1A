@@ -1,29 +1,10 @@
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
-# from IPython.display import HTML
 import numpy as np
 from math import pi
+from src.post_processing.utilities import configure_matplotlib
 
-def configure_matplotlib():
-    SMALL_SIZE = 18
-    MEDIUM_SIZE = 20
-    BIGGER_SIZE = 22
-
-    rcParams.update({'figure.autolayout': True, 
-                     'text.usetex': True,
-                     'text.latex.preamble':r"\usepackage{amsmath}",
-                     'legend.loc':'upper right',
-                     'font.size': SMALL_SIZE,
-                     'axes.titlesize': BIGGER_SIZE,
-                     'axes.labelsize': MEDIUM_SIZE,
-                     'xtick.labelsize': SMALL_SIZE,
-                     'legend.fontsize': SMALL_SIZE,
-                     'figure.titlesize': BIGGER_SIZE
-                     })
-  
-
-def animate_mode(coordinates, mode_shape, omega_mode):
+def animate_1d_mode(coordinates, mode_shape, omega_mode):
     fig, ax = plt.subplots()
     ax.set_xlim(0, max(coordinates))
     max_ampl = max(max(mode_shape), abs(min(mode_shape)))
@@ -48,7 +29,7 @@ def animate_mode(coordinates, mode_shape, omega_mode):
     return anim
 
 
-def plot_vertical_displacement(time_step, coordinates, values_dofs):
+def plot_1d_vertical_displacement(time_step, coordinates, values_dofs):
     configure_matplotlib()
     fig, ax = plt.subplots()
 

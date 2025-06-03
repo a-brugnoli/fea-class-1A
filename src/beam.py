@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as sla
 from time_integration import newmark
-from post_processing import configure_matplotlib, plot_vertical_displacement, animate_mode
+from post_processing.utilities import configure_matplotlib, plot_1d_vertical_displacement, animate_1d_mode
 configure_matplotlib()
 from restore_data import restore_data
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     mode_shape = eigenvectors[::2, num_mode]
     omega_mode = omega_vec[num_mode]
 
-    animation = animate_mode(coordinates, mode_shape, omega_mode)    
+    animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
 
 
     # # Initial conditions corresponding to first mode
@@ -144,6 +144,6 @@ if __name__ == "__main__":
 
     # q_array = restore_data(q_array_red, dofs_bcs)
     # # Post-processing
-    # animation = plot_vertical_displacement(dt, coordinates, q_array)
+    # animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
 
     plt.show()
