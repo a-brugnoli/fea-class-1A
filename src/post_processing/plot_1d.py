@@ -2,7 +2,7 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 from math import pi
-from src.post_processing.utilities import configure_matplotlib
+from .configuration import configure_matplotlib
 
 def animate_1d_mode(coordinates, mode_shape, omega_mode):
     fig, ax = plt.subplots()
@@ -37,8 +37,12 @@ def plot_1d_vertical_displacement(time_step, coordinates, values_dofs):
 
     vertical_displacement = values_dofs[::2, :]
     
-    step_animation = 100
-    interval_frames = time_step * step_animation * 1000
+    step_animation = 10
+
+    dt_frames = time_step * step_animation
+
+    # frames_per_second = 20 
+    interval_frames = dt_frames * 1000 # Convert to milliseconds
     line, = ax.plot(coordinates, vertical_displacement[:, 0])
 
     ax.set_xlim(0, max(coordinates))

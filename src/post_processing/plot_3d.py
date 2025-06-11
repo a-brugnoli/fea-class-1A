@@ -6,23 +6,23 @@ import matplotlib.colors as colors
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
 
-class FEMPostProcessor:
+class PostProcessorHexMesh:
     """
     Post-processing class for FEM results visualization
     Handles 3D rendering of hexahedral elements with flat surfaces
     """
     
-    def __init__(self, nodes, elements):
+    def __init__(self, coordinates, elements):
         """
         Initialize post-processor
         
         Parameters:
-        nodes: array of node coordinates (n_nodes x 3)
+        coordinates: array of node coordinates (n_nodes x 3)
         elements: array of element connectivity (n_elements x 8)
         """
-        self.nodes = np.array(nodes)
+        self.coordinates = np.array(coordinates)
         self.elements = np.array(elements)
-        self.n_nodes = len(nodes)
+        self.n_nodes = len(coordinates)
         self.n_elements = len(elements)
         
         # Define the 6 faces of a hexahedron (Q8 element)
@@ -35,19 +35,39 @@ class FEMPostProcessor:
             [0, 3, 7, 4],  # Left face (x = constant, lower)
             [1, 5, 6, 2]   # Right face (x = constant, upper)
         ]
+
+        self.displacements = None  
+
+    def set_displacements(self, displacements):
+        """
+        Set displacements for the nodes
         
-    def get_element_faces(self, element_id):
+        Parameters:
+        displacements: array of displacements (n_nodes x 3)
+        """
+        if displacements.shape[0] != self.n_nodes or displacements.shape[1] != 3:
+            raise ValueError(f"Displacement array shape {displacements.shape} \
+                               doesn't match number of nodes {self.n_nodes}")
+        self.displacements = np.array(displacements)
+
+
+    def get_element_faces(self, element_id, displaced=False):
         """
         Get all faces of a specific element
         
         Parameters:
         element_id: element index
+        displaced: if True, apply displacements to the coordinates
         
         Returns:
         faces: list of face coordinates (6 faces x 4 vertices x 3 coordinates)
         """
         elem_nodes = self.elements[element_id]
-        elem_coords = self.nodes[elem_nodes]
+        elem_coords = self.coordinates[elem_nodes]
+
+        # If displacements are provided, apply them
+        if self.displacements is not None and displaced:
+            elem_coords += self.displacements[elem_nodes]
         
         faces = []
         for face_nodes in self.hex_faces:
@@ -56,12 +76,14 @@ class FEMPostProcessor:
             
         return faces
     
-    def get_all_faces(self, skip_internal=True):
+
+    def get_all_faces(self, skip_internal=True, displaced=False):
         """
         Get all faces from all elements
         
         Parameters:
         skip_internal: if True, skip internal faces (shared between elements)
+        displaced: if True, apply displacements to the coordinates
         
         Returns:
         all_faces: list of all face coordinates
@@ -75,7 +97,7 @@ class FEMPostProcessor:
             face_dict = {}  # Dictionary to track face sharing
             
             for elem_id in range(self.n_elements):
-                faces = self.get_element_faces(elem_id)
+                faces = self.get_element_faces(elem_id, displaced=displaced)
                 
                 for i, face in enumerate(faces):
                     # Create a unique identifier for this face based on sorted node indices
@@ -104,16 +126,17 @@ class FEMPostProcessor:
         else:
             # Simple: add all faces
             for elem_id in range(self.n_elements):
-                faces = self.get_element_faces(elem_id)
+                faces = self.get_element_faces(elem_id, displaced=displaced)
                 for face in faces:
                     all_faces.append(face)
                     face_elements.append(elem_id)
         
         return all_faces, face_elements
     
+
     def plot_solid(self, field_data=None, field_name="Field", cmap='viridis', 
                    alpha=0.8, show_edges=True, edge_color='black', edge_alpha=0.3,
-                   skip_internal=True, figsize=(12, 9)):
+                   skip_internal=True, figsize=(12, 9), original_outline=True):
         """
         Plot the solid with flat surfaces
         
@@ -132,7 +155,7 @@ class FEMPostProcessor:
         ax = fig.add_subplot(111, projection='3d')
         
         # Get all faces
-        all_faces, face_elements = self.get_all_faces(skip_internal=skip_internal)
+        all_faces, face_elements = self.get_all_faces(skip_internal=skip_internal, displaced=True)
         
         if not all_faces:
             print("No faces to plot!")
@@ -150,8 +173,8 @@ class FEMPostProcessor:
                     elem_id = face_elements[i]
                     elem_nodes = self.elements[elem_id]
                     
-                    # Get face node indices (need to map back to original nodes)
-                    face_center = np.mean(face, axis=0)
+                    # # Get face node indices (need to map back to original nodes)
+                    # face_center = np.mean(face, axis=0)
                     # This is approximate - for exact mapping, we'd need to track node indices
                     face_field_avg = np.mean(field_data[elem_nodes])
                     face_colors.append(face_field_avg)
@@ -209,48 +232,9 @@ class FEMPostProcessor:
             
             ax.add_collection3d(face_patches)
         
-        # Set axis properties
-        self._set_axis_properties(ax)
-        
-        # Add title
-        title = "3D FEM Mesh"
-        if field_data is not None:
-            title += f" - {field_name}"
-        ax.set_title(title)
-        
-        return fig, ax
-    
-    def plot_deformed_solid(self, displacements, scale_factor=1.0, field_data=None, 
-                           field_name="Field", original_outline=True, **kwargs):
-        """
-        Plot deformed solid with optional field coloring
-        
-        Parameters:
-        displacements: displacement field (n_nodes x 3)
-        scale_factor: scaling factor for displacements
-        field_data: optional field data for coloring
-        field_name: name of the field
-        original_outline: whether to show original mesh outline
-        **kwargs: additional arguments for plot_solid
-        """
-        # Store original nodes
-        original_nodes = self.nodes.copy()
-        
-        # Apply displacements
-        displacements = np.array(displacements)
-        if displacements.shape[0] != self.n_nodes:
-            print(f"Displacement array size {displacements.shape[0]} doesn't match number of nodes {self.n_nodes}")
-            return None, None
-        
-        self.nodes = original_nodes + scale_factor * displacements
-        
-        # Plot deformed solid
-        fig, ax = self.plot_solid(field_data=field_data, field_name=field_name, **kwargs)
-        
-        if original_outline:
+        if self.displacements is not None and original_outline:
             # Plot original mesh outline
-            self.nodes = original_nodes  # Temporarily restore
-            all_faces, _ = self.get_all_faces(skip_internal=True)
+            all_faces, _ = self.get_all_faces(skip_internal=True, displaced=False)
             
             # Plot original faces as wireframe
             for face in all_faces:
@@ -259,16 +243,25 @@ class FEMPostProcessor:
                     start = face[i]
                     end = face[(i+1)%4]
                     ax.plot3D([start[0], end[0]], [start[1], end[1]], [start[2], end[2]], 
-                             'k--', alpha=0.3, linewidth=0.5)
+                            'k--', alpha=0.3, linewidth=0.5)
         
-        # Restore deformed nodes
-        self.nodes = original_nodes + scale_factor * displacements
+
+        # Set axis properties
+        self._set_axis_properties(ax)
         
-        ax.set_title(f"Deformed Mesh (Scale: {scale_factor:.1f})")
+        # Add title
+        if self.displacements is not None:
+            title = "Deformed 3D Mesh"
+        else:
+            title = "3D Mesh"
+        if field_data is not None:
+            title += f" - {field_name}"
+        ax.set_title(title)
         
         return fig, ax
     
-    def plot_mode_shape_solid(self, mode_vector, free_dofs, scale_factor=0.1, 
+    
+    def plot_mode_shape_solid(self, mode_vector, scale_factor=1, 
                              mode_number=1, frequency=None, **kwargs):
         """
         Plot mode shape as deformed solid
@@ -280,30 +273,20 @@ class FEMPostProcessor:
         mode_number: mode number for title
         frequency: natural frequency (Hz)
         **kwargs: additional arguments for plot_deformed_solid
-        """
-        # Reconstruct full displacement vector
-        full_displacement = np.zeros(3 * self.n_nodes)
-        full_displacement[free_dofs] = mode_vector
-        
+        """        
         # Reshape to get displacements for each node
-        displacements = full_displacement.reshape((-1, 3))
-        
-        # Auto-scale if needed
-        max_disp = np.max(np.abs(displacements))
-        if max_disp > 0:
-            domain_size = np.max(self.nodes, axis=0) - np.min(self.nodes, axis=0)
-            auto_scale = 0.1 * np.min(domain_size) / max_disp
-            scale_factor = scale_factor * auto_scale
-        
+
+        modal_displacements = scale_factor*mode_vector.reshape((-1, 3))
+        self.set_displacements(modal_displacements) 
+
         # Use displacement magnitude as field data
-        disp_magnitude = np.linalg.norm(displacements, axis=1)
+        disp_magnitude = np.linalg.norm(modal_displacements, axis=1)
         
         # Plot deformed solid
-        fig, ax = self.plot_deformed_solid(
-            displacements, 
-            scale_factor=scale_factor, 
+        fig, ax = self.plot_solid(
             field_data=disp_magnitude,
             field_name="Displacement Magnitude",
+            original_outline=True,
             **kwargs
         )
         
@@ -317,8 +300,11 @@ class FEMPostProcessor:
     
     def _set_axis_properties(self, ax):
         """Set axis properties for 3D plot"""
+        all_coords = np.copy(self.coordinates) 
+        if self.displacements is not None:
+            # If displacements are set, adjust the nodes accordingly
+            all_coords += self.displacements
         # Calculate bounds
-        all_coords = self.nodes
         x_min, x_max = np.min(all_coords[:, 0]), np.max(all_coords[:, 0])
         y_min, y_max = np.min(all_coords[:, 1]), np.max(all_coords[:, 1])
         z_min, z_max = np.min(all_coords[:, 2]), np.max(all_coords[:, 2])
@@ -359,18 +345,6 @@ class FEMPostProcessor:
         print("Slice plotting functionality - to be implemented")
         pass
     
-    def export_vtk(self, filename, field_data=None, field_names=None):
-        """
-        Export mesh and field data to VTK format
-        
-        Parameters:
-        filename: output filename
-        field_data: dictionary of field data arrays
-        field_names: list of field names
-        """
-        # Placeholder for VTK export functionality
-        print(f"VTK export to {filename} - to be implemented")
-        pass
 
 # Example usage and integration with the Q8HexMesh class
 def demo_postprocessing():
@@ -407,7 +381,7 @@ def demo_postprocessing():
                 elements.append([n1, n2, n3, n4, n5, n6, n7, n8])
     
     # Create post-processor
-    postproc = FEMPostProcessor(nodes, elements)
+    postproc = PostProcessorHexMesh(nodes, elements)
     
     # Test 1: Basic solid plotting
     print("Plotting basic solid...")
@@ -433,11 +407,10 @@ def demo_postprocessing():
     # Create a simple bending displacement pattern
     for i, node in enumerate(nodes_array):
         x, y, z = node
-        displacements[i] = [0, 0, 0.1 * x * z]  # Bending in z-direction
+        displacements[i] = 2*np.array([0, 0, 0.1 * x * z])  # Bending in z-direction
     
-    fig3, ax3 = postproc.plot_deformed_solid(
-        displacements,
-        scale_factor=2.0,
+    postproc.set_displacements(displacements)
+    fig3, ax3 = postproc.plot_solid(
         field_data=np.linalg.norm(displacements, axis=1),
         field_name="Displacement Magnitude",
         cmap='coolwarm'

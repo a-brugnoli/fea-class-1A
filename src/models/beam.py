@@ -1,13 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as sla
-from time_integration import newmark
-from post_processing.utilities import configure_matplotlib, plot_1d_vertical_displacement, animate_1d_mode
+from src.solvers.time_integration import newmark
+from src.post_processing.configuration import configure_matplotlib
+from src.post_processing.plot_1d import plot_1d_vertical_displacement, animate_1d_mode
 configure_matplotlib()
-from restore_data import restore_data
+from src.utilities.restore_data import restore_data
 
 class Beam:
-    def __init__(self, length, num_elements, E, I, rho, A):
+    def __init__(self, length, num_elements, material_props: dict):
         """
         Initialize beam vibration analysis parameters
         
@@ -21,10 +22,10 @@ class Beam:
         """
         self.length = length
         self.num_elements = num_elements
-        self.E = E
-        self.I = I
-        self.rho = rho
-        self.A = A
+        self.E = material_props['E']
+        self.I = material_props['I']
+        self.rho = material_props['rho']
+        self.A = material_props['A']
         
         # Element length
         self.el_size = length / num_elements
@@ -86,12 +87,19 @@ if __name__ == "__main__":
     rho = 7800  # Density (kg/m^3)
     A = 1.0e-4  # Cross-sectional area (m^2)
 
+    properties = {
+        'E': E,
+        'I': I,
+        'rho': rho,
+        'A': A
+    }
+
     num_elements = 20
     coordinates = np.linspace(0, length, num_elements + 1)
     num_dofs = 2*len(coordinates)
 
     # Create beam analysis object
-    beam = Beam(length, num_elements, E, I, rho, A)
+    beam = Beam(length, num_elements, properties)
     
     # Generate matrices
     K = beam.generate_stiffness_matrix()
@@ -107,27 +115,26 @@ if __name__ == "__main__":
 
     eigenvectors = restore_data(modes_red, dofs_bcs)
 
-    n_modes = 4
-    for ii in range(n_modes):
-        plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
-        plt.legend()
+    # n_modes = 4
+    # for ii in range(n_modes):
+    #     plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
+    #     plt.legend()
 
     num_mode = 1
-    mode_shape = eigenvectors[::2, num_mode]
-    omega_mode = omega_vec[num_mode]
+    # mode_shape = eigenvectors[::2, num_mode]
+    # omega_mode = omega_vec[num_mode]
+    # animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
 
-    animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
 
-
-    # # Initial conditions corresponding to first mode
-    # q0 = np.zeros(num_dofs)
-    # v0 = np.zeros(num_dofs)
+    # Initial conditions corresponding to first mode
+    q0 = np.zeros(num_dofs)
+    v0 = np.zeros(num_dofs)
     
-    # q0[::2] = eigenvectors[0::2, num_mode]
-    # q0[1::2] = eigenvectors[1::2, num_mode]
+    q0[::2] = eigenvectors[0::2, num_mode]
+    q0[1::2] = eigenvectors[1::2, num_mode]
 
-    # q0_red = np.delete(q0, dofs_bcs)
-    # v0_red = np.delete(v0, dofs_bcs)
+    q0_red = np.delete(q0, dofs_bcs)
+    v0_red = np.delete(v0, dofs_bcs)
 
     # This part is to be done by the students:
     # - declare dofs subjected to bcs
@@ -136,14 +143,15 @@ if __name__ == "__main__":
     # For clamped bcs and for free bcs
 
 
-    # # Solve dynamic response
-    # T_end = 1  # Total simulation time
-    # dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
-    # n_times = int(np.ceil(T_end/dt))
-    # q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
+    # Solve dynamic response
+    T_end = 1  # Total simulation time
+    dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
+    print(f"Time step: {dt:.4f} [s]")
+    n_times = int(np.ceil(T_end/dt))
+    q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
 
-    # q_array = restore_data(q_array_red, dofs_bcs)
-    # # Post-processing
-    # animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
+    q_array = restore_data(q_array_red, dofs_bcs)
+    # Post-processing
+    animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
 
     plt.show()
