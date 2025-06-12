@@ -254,7 +254,7 @@ if __name__ == "__main__":
     height = 1   # Height (m) 
     
     # Mesh parameters
-    nx = 100
+    nx = 50
     ny = int(width/length*nx)+1
     nz = int(height/length*nx)+1
     
@@ -288,12 +288,11 @@ if __name__ == "__main__":
     for ii in range(4):
         fig, ax = plotter.plot_mode_shape_solid(mode_shapes[:, ii], mode_number=ii+1, scale_factor=.1)
     
-    plt.show()
     # Print results
     modal_analysis.print_modal_results(10)
-    
     # Compare with analytical solution
     modal_analysis.compare_with_analytical(length, beam_width=width, beam_height=height, n_modes=10)
 
-    
     print("\nModal analysis complete!")
+
+    plt.show()

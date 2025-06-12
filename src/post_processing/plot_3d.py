@@ -36,9 +36,10 @@ class PostProcessorHexMesh:
             [1, 5, 6, 2]   # Right face (x = constant, upper)
         ]
 
-        self.displacements = None  
+        self.displacements = None 
+        self.scale_factor = None
 
-    def set_displacements(self, displacements):
+    def set_displacements(self, displacements, scale_factor=1.0):
         """
         Set displacements for the nodes
         
@@ -49,7 +50,7 @@ class PostProcessorHexMesh:
             raise ValueError(f"Displacement array shape {displacements.shape} \
                                doesn't match number of nodes {self.n_nodes}")
         self.displacements = np.array(displacements)
-
+        self.scale_factor = scale_factor  
 
     def get_element_faces(self, element_id, displaced=False):
         """
@@ -67,7 +68,7 @@ class PostProcessorHexMesh:
 
         # If displacements are provided, apply them
         if self.displacements is not None and displaced:
-            elem_coords += self.displacements[elem_nodes]
+            elem_coords += self.scale_factor * self.displacements[elem_nodes]
         
         faces = []
         for face_nodes in self.hex_faces:
@@ -251,7 +252,7 @@ class PostProcessorHexMesh:
         
         # Add title
         if self.displacements is not None:
-            title = "Deformed 3D Mesh"
+            title = "Deformed 3D Mesh. Scale factor: x{:.1f}".format(self.scale_factor)
         else:
             title = "3D Mesh"
         if field_data is not None:
@@ -261,8 +262,7 @@ class PostProcessorHexMesh:
         return fig, ax
     
     
-    def plot_mode_shape_solid(self, mode_vector, scale_factor=1, 
-                             mode_number=1, frequency=None, **kwargs):
+    def plot_mode_shape_solid(self, mode_vector, scale_factor=1, mode_number=1, frequency=None, **kwargs):
         """
         Plot mode shape as deformed solid
         
@@ -276,8 +276,8 @@ class PostProcessorHexMesh:
         """        
         # Reshape to get displacements for each node
 
-        modal_displacements = scale_factor*mode_vector.reshape((-1, 3))
-        self.set_displacements(modal_displacements) 
+        modal_displacements = mode_vector.reshape((-1, 3))
+        self.set_displacements(modal_displacements, scale_factor=scale_factor) 
 
         # Use displacement magnitude as field data
         disp_magnitude = np.linalg.norm(modal_displacements, axis=1)
@@ -303,7 +303,7 @@ class PostProcessorHexMesh:
         all_coords = np.copy(self.coordinates) 
         if self.displacements is not None:
             # If displacements are set, adjust the nodes accordingly
-            all_coords += self.displacements
+            all_coords += self.scale_factor * self.displacements
         # Calculate bounds
         x_min, x_max = np.min(all_coords[:, 0]), np.max(all_coords[:, 0])
         y_min, y_max = np.min(all_coords[:, 1]), np.max(all_coords[:, 1])
@@ -315,7 +315,7 @@ class PostProcessorHexMesh:
         z_range = z_max - z_min
         max_range = max(x_range, y_range, z_range)
         
-        padding = 0.1 * max_range
+        padding = 0.05 * max_range
         
         ax.set_xlim(x_min - padding, x_max + padding)
         ax.set_ylim(y_min - padding, y_max + padding)
@@ -327,7 +327,7 @@ class PostProcessorHexMesh:
         ax.set_zlabel('Z')
         
         # Set equal aspect ratio
-        ax.set_box_aspect([x_range, y_range, z_range])
+        # ax.set_box_aspect([x_range, y_range, z_range])
     
     def plot_slice(self, plane_normal='z', plane_position=0.5, field_data=None, 
                    field_name="Field", **kwargs):

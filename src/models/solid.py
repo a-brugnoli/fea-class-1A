@@ -33,7 +33,8 @@ class Q8FiniteElementAssembler:
         self.rho = material_props['rho']
         
         # Number of DOFs (3 per node for 3D displacement)
-        self.n_dofs = 3 * mesh.n_nodes
+        self.dof_per_node = 3
+        self.n_dofs = self.dof_per_node * mesh.n_nodes
         
         # Gauss quadrature points and weights for 2x2x2 integration
         self._setup_gauss_quadrature()
@@ -388,6 +389,220 @@ class Q8FiniteElementAssembler:
         M = self.assemble_mass_matrix()
         return K, M
     
+
+    def assemble_surface_traction_force(self, traction_vector, traction_plane='x_max'):
+        """
+        Assemble force vector for surface traction applied to lateral surface of Q8 solid elements.
+        
+        Parameters:
+        -----------
+        surface_elements : list
+            List of surface element connectivity (4 nodes per face for Q8 hex elements)
+        traction_vector : array_like
+            Applied traction vector [tx, ty, tz] (force per unit area)
+        traction_plane : str
+            Which plane to fix ('z_min', 'z_max', 'x_min', 'x_max', 'y_min', 'y_max')
+            
+        Returns:
+        --------
+        F : ndarray
+            Global force vector
+        """
+        
+        # Initialize global force vector
+ 
+        F = np.zeros(self.n_dofs)
+        
+        # Convert traction to numpy array
+        traction = np.array(traction_vector)
+        
+        # Gauss quadrature points and weights for 2D surface integration (2x2)
+        g = 1.0 / np.sqrt(3.0)  # ±1/√3
+        gauss_points = np.array([[-g, -g],
+                                 [+g, -g],
+                                 [+g, +g],
+                                 [-g, +g]])
+        
+        gauss_weights = np.array([1.0, 1.0, 1.0, 1.0])
+
+        tolerance = 1e-10
+        if traction_plane == 'z_min':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 2] - self.mesh.origin[2]) < tolerance)[0]
+        elif traction_plane == 'z_max':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 2] - (self.mesh.origin[2] + self.mesh.Lz)) < tolerance)[0]
+        elif traction_plane == 'x_min':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 0] - self.mesh.origin[0]) < tolerance)[0]
+        elif traction_plane == 'x_max':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 0] - (self.mesh.origin[0] + self.mesh.Lx)) < tolerance)[0]
+        elif traction_plane == 'y_min':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 1] - self.mesh.origin[1]) < tolerance)[0]
+        elif traction_plane == 'y_max':
+            self.traction_nodes = np.where(np.abs(self.mesh.coordinates[:, 1] - (self.mesh.origin[1] + self.mesh.Ly)) < tolerance)[0]
+        else:
+            raise ValueError(f"Unknown traction_plane: {traction_plane}")
+        
+        surface_elements = self.retrieve_surface_elements_from_connectivity(self.traction_nodes)
+        # Process each surface element
+        for surface_elem in surface_elements:
+            # Get nodal coordinates for the 4-node surface element
+            surface_nodes = np.array(surface_elem)  # 4 nodes defining the surface
+            coords = np.array([self.nodes[node_id] for node_id in surface_nodes])
+            
+            # Initialize element force vector (4 nodes × 3 DOF = 12 DOF)
+            f_elem = np.zeros(12)
+            
+            # Numerical integration over surface element
+            for gp, (xi, eta) in enumerate(gauss_points):
+                weight = gauss_weights[gp]
+                
+                # Shape functions for 4-node quadrilateral (bilinear)
+                N = self._compute_surface_shape_functions(xi, eta)
+                
+                # Shape function derivatives in natural coordinates
+                dN_dxi, dN_deta = self._compute_surface_shape_derivatives(xi, eta)
+                
+                # Compute Jacobian matrix for surface element
+                dx_dxi = np.dot(dN_dxi, coords[:, 0])
+                dy_dxi = np.dot(dN_dxi, coords[:, 1])
+                dz_dxi = np.dot(dN_dxi, coords[:, 2])
+                
+                dx_deta = np.dot(dN_deta, coords[:, 0])
+                dy_deta = np.dot(dN_deta, coords[:, 1])
+                dz_deta = np.dot(dN_deta, coords[:, 2])
+                
+                # Surface tangent vectors
+                t1 = np.array([dx_dxi, dy_dxi, dz_dxi])
+                t2 = np.array([dx_deta, dy_deta, dz_deta])
+                
+                # Surface normal vector (cross product)
+                normal = np.cross(t1, t2)
+                
+                # Jacobian determinant (surface area element)
+                J_det = np.linalg.norm(normal)
+                
+                # Compute element force contribution at this Gauss point
+                for i in range(4):  # 4 nodes per surface element
+                    # Force contribution for node i
+                    force_contrib = N[i] * traction * J_det * weight
+                    
+                    # Add to element force vector
+                    f_elem[i*3:(i+1)*3] += force_contrib
+            
+            # Assemble element force vector into global force vector
+            for i, node_id in enumerate(surface_nodes):
+                global_dof_start = node_id * self.dof_per_node
+                f_elem_start = i * self.dof_per_node
+                F[global_dof_start:global_dof_start + self.dof_per_node] += \
+                    f_elem[f_elem_start:f_elem_start + self.dof_per_node]
+        
+        return F
+    
+
+    def retrieve_surface_elements_from_connectivity(self, surface_node_ids):
+        """
+        Extract surface elements (quadrilaterals) from hexahedral connectivity matrix
+        based on known surface nodes.
+        
+        Parameters:
+        -----------
+        surface_node_ids : list or set
+            Node IDs that belong to the surface
+            
+        Returns:
+        --------
+        surface_elements : list
+            List of surface quadrilateral elements, each containing 4 node IDs
+        """
+        
+        surface_node_set = set(surface_node_ids)
+        surface_elements = []
+        
+        # Define the 6 faces of a Q8 hexahedral element (8-node hex)
+        # Each face is defined by 4 corner nodes in counter-clockwise order
+        # Node numbering follows standard Q8 convention:
+        #   Bottom face: nodes 0,1,2,3 (z = z_min)
+        #   Top face: nodes 4,5,6,7 (z = z_max)
+        hex_faces = [
+            [0, 1, 2, 3],  # Face 0: bottom (z = z_min)
+            [4, 7, 6, 5],  # Face 1: top (z = z_max) 
+            [0, 4, 5, 1],  # Face 2: front (y = y_min)
+            [3, 2, 6, 7],  # Face 3: back (y = y_max)
+            [0, 3, 7, 4],  # Face 4: left (x = x_min)
+            [1, 5, 6, 2]   # Face 5: right (x = x_max)
+        ]
+        
+        # Iterate through all hexahedral elements in connectivity matrix
+        for element_nodes in self.mesh.elements:
+            # element_nodes should contain 8 node IDs for Q8 hex element
+            
+            # Check each face of the current hexahedral element
+            for face_local_nodes in hex_faces:
+                # Get global node IDs for this face
+                face_global_nodes = [element_nodes[i] for i in face_local_nodes]
+                
+                # Check if all 4 face nodes are in the surface node set
+                if all(node_id in surface_node_set for node_id in face_global_nodes):
+                    # This face lies entirely on the surface
+                    surface_elements.append(face_global_nodes)
+        
+        return surface_elements
+
+
+    def _compute_surface_shape_functions(self, xi, eta):
+        """
+        Compute shape functions for 4-node quadrilateral surface element.
+        
+        Parameters:
+        -----------
+        xi, eta : float
+            Natural coordinates
+            
+        Returns:
+        --------
+        N : ndarray
+            Shape function values at (xi, eta)
+        """
+        N = np.zeros(4)
+        N[0] = 0.25 * (1 - xi) * (1 - eta)  # Node 1
+        N[1] = 0.25 * (1 + xi) * (1 - eta)  # Node 2
+        N[2] = 0.25 * (1 + xi) * (1 + eta)  # Node 3
+        N[3] = 0.25 * (1 - xi) * (1 + eta)  # Node 4
+        
+        return N
+
+
+    def _compute_surface_shape_derivatives(self, xi, eta):
+        """
+        Compute shape function derivatives for 4-node quadrilateral surface element.
+        
+        Parameters:
+        -----------
+        xi, eta : float
+            Natural coordinates
+            
+        Returns:
+        --------
+        dN_dxi, dN_deta : ndarray
+            Shape function derivatives with respect to xi and eta
+        """
+        dN_dxi = np.zeros(4)
+        dN_deta = np.zeros(4)
+        
+        # Derivatives with respect to xi
+        dN_dxi[0] = -0.25 * (1 - eta)
+        dN_dxi[1] =  0.25 * (1 - eta)
+        dN_dxi[2] =  0.25 * (1 + eta)
+        dN_dxi[3] = -0.25 * (1 + eta)
+        
+        # Derivatives with respect to eta
+        dN_deta[0] = -0.25 * (1 - xi)
+        dN_deta[1] = -0.25 * (1 + xi)
+        dN_deta[2] =  0.25 * (1 + xi)
+        dN_deta[3] =  0.25 * (1 - xi)
+        
+        return dN_dxi, dN_deta
+
+
     def get_matrix_info(self) -> dict:
         """Get information about the assembled matrices."""
         info = {

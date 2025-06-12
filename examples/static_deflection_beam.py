@@ -39,7 +39,7 @@ class CantileverBeamDeflection:
         
         # Fixed end: nodes at minimum x-coordinate
         min_x = np.min(x_coords)
-        self.fixed_nodes = np.where(np.abs(x_coords - min_x) < 1e-10)[0]
+        self.fixed_nodes = np.where(np.isclose(x_coords, min_x, rtol=1e-10))[0]
         self.fixed_dofs = []
         for node in self.fixed_nodes:
             self.fixed_dofs.extend([3*node, 3*node+1, 3*node+2])  # u, v, w
@@ -49,7 +49,7 @@ class CantileverBeamDeflection:
         
         # Free end: nodes at maximum x-coordinate  
         max_x = np.max(x_coords)
-        self.traction_nodes = np.where(np.abs(x_coords - max_x) < 1e-10)[0]
+        self.traction_nodes = np.where(np.isclose(x_coords, max_x, rtol=1e-10))[0]
 
 
     def update_mesh(self, mesh: StructuredHexMesh):
@@ -98,7 +98,7 @@ class CantileverBeamDeflection:
         
         return K_reduced, F_reduced
     
-    def _create_force_vector(self, traction):
+    def _create_force_vector(self, force):
         """
         Create force vector with unit tip load.
         
@@ -111,14 +111,15 @@ class CantileverBeamDeflection:
         x_coords = np.array(self.mesh.coordinates)[:, 0]
 
         max_x = np.max(x_coords)
-        self.traction_nodes = np.where(np.abs(x_coords - max_x) < 1e-10)[0]
 
-        value_nodal_force = - traction / len(self.traction_nodes)  # Distribute load evenly
+        self.traction_nodes = np.where(np.isclose(x_coords, max_x,rtol=1e-10))[0]
+
+        value_nodal_force = - force / len(self.traction_nodes)  # Distribute load evenly
         F = np.zeros(self.n_dofs)
         
         # Apply unit downward force at free end nodes
         for node in self.traction_nodes:
-            dof_along_z = 3 * node + 2  # y-displacement DOF
+            dof_along_z = 3 * node + 2  # z-displacement DOF
             F[dof_along_z] = value_nodal_force  # Distribute load among tip nodes
             
         return F
@@ -163,7 +164,7 @@ class CantileverBeamDeflection:
         tip_deflection = np.max(np.abs(u_full))  # y-displacement at tip nodes
         
         results = {
-            'tip_deflection': abs(tip_deflection),
+            'tip_deflection': tip_deflection,
             'solution_vector': u_full.reshape(-1, 3),  
         }
         
@@ -182,12 +183,12 @@ if __name__ == "__main__":
 
     rho = 2700  # Density (kg/m^3)
     E = 69e9  # Young's modulus (Pa) for steel
-    nu = 0
+    nu = 0.3
     
     # Mesh parameters
-    nx = 10
-    ny = int(width/length*nx)+1
-    nz = int(height/length*nx)+1
+    nx = 500
+    ny = 3 # int(width/length*nx)+1
+    nz = 3 # int(height/length*nx)+1
     
     print("Creating cantilever beam mesh...")
     mesh = StructuredHexMesh(length, width, height, nx, ny, nz)  # Note: y=width, z=height
@@ -201,23 +202,22 @@ if __name__ == "__main__":
     }
 
     magnitude_tip_force = 1  # Unit force at tip (N)
-    traction = magnitude_tip_force/(height*width)  # Traction force applied at the tip
     # Solve
     solver = CantileverBeamDeflection(mesh, material_props)
-    results = solver.solve(traction)
+    results = solver.solve(magnitude_tip_force)
     
     I_beam = (width * height**3) / 12  # Moment of inertia for rectangular cross-section
     tip_deflection_beam = magnitude_tip_force * length**3 / (3 * E * I_beam)
 
-    print(f"Tip deflection: {results['tip_deflection']*1e3:.1f} [mm]")
+    print(f"Tip deflection 3D: {results['tip_deflection']*1e3:.1f} [mm]")
     print(f"Expected tip deflection (beam theory): {tip_deflection_beam*1e3:1f} [mm]")
 
-    # plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
-    # plotter.set_displacements(results['solution_vector'])
-    # plotter.plot_solid()
+    plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
+    plotter.set_displacements(results['solution_vector'], scale_factor=5)
+    plotter.plot_solid()
 
-    # import matplotlib.pyplot as plt
-    # plt.show()
+    import matplotlib.pyplot as plt
+    plt.show()
 
 
 
