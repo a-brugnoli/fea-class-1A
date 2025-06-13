@@ -25,9 +25,12 @@ class CantileverBeamDeflection:
             Mesh object with attributes:
             - coordinates: array of nodal coordinates [(x1,y1), (x2,y2), ...]
             - elements: array of element connectivity [[node1, node2], ...]
-        assembler : object
-            Assembler object with method:
-            - compute_stiffness_matrix(mesh): returns global stiffness matrix
+        material_props : dict
+            Dictionary containing material properties:
+            - 'E': Young's modulus (Pa)
+            - 'nu': Poisson's ratio
+            - 'rho': Density (kg/m^3)
+        -----------
         """
         self.material_props = material_props
 
@@ -142,8 +145,11 @@ class CantileverBeamDeflection:
         K = self.assembler.assemble_stiffness_matrix()
         
         # Create force vector
-        F = self._create_force_vector(magnitude_tip_force)
-        
+        # F = self._create_force_vector(magnitude_tip_force)
+        cross_section_area = self.mesh.Ly * self.mesh.Lz  # Cross-sectional area
+        traction = np.array([0, 0, -magnitude_tip_force/cross_section_area])  # Force vector at tip
+        F = self.assembler.assemble_surface_traction_force(traction, traction_plane="x_max")
+
         # Apply boundary conditions
         print("Applying boundary conditions...")
         K_reduced, F_reduced = self._apply_boundary_conditions(K, F)
@@ -186,9 +192,9 @@ if __name__ == "__main__":
     nu = 0.3
     
     # Mesh parameters
-    nx = 500
-    ny = 3 # int(width/length*nx)+1
-    nz = 3 # int(height/length*nx)+1
+    nx = 500 # Number of elements along length
+    ny = 4 # int(width/length*nx)+1
+    nz = 4 # int(height/length*nx)+1
     
     print("Creating cantilever beam mesh...")
     mesh = StructuredHexMesh(length, width, height, nx, ny, nz)  # Note: y=width, z=height
@@ -212,12 +218,12 @@ if __name__ == "__main__":
     print(f"Tip deflection 3D: {results['tip_deflection']*1e3:.1f} [mm]")
     print(f"Expected tip deflection (beam theory): {tip_deflection_beam*1e3:1f} [mm]")
 
-    plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
-    plotter.set_displacements(results['solution_vector'], scale_factor=5)
-    plotter.plot_solid()
+    # plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
+    # plotter.set_displacements(results['solution_vector'], scale_factor=5)
+    # plotter.plot_solid()
 
-    import matplotlib.pyplot as plt
-    plt.show()
+    # import matplotlib.pyplot as plt
+    # plt.show()
 
 
 

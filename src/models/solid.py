@@ -446,7 +446,7 @@ class Q8FiniteElementAssembler:
         for surface_elem in surface_elements:
             # Get nodal coordinates for the 4-node surface element
             surface_nodes = np.array(surface_elem)  # 4 nodes defining the surface
-            coords = np.array([self.nodes[node_id] for node_id in surface_nodes])
+            coords = np.array([self.mesh.coordinates[node_id] for node_id in surface_nodes])
             
             # Initialize element force vector (4 nodes × 3 DOF = 12 DOF)
             f_elem = np.zeros(12)
