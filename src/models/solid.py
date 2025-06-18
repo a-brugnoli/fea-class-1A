@@ -441,7 +441,7 @@ class Q8FiniteElementAssembler:
         else:
             raise ValueError(f"Unknown traction_plane: {traction_plane}")
         
-        surface_elements = self.retrieve_surface_elements_from_connectivity(self.traction_nodes)
+        surface_elements = self.mesh.get_faces_from_nodes(self.traction_nodes)
         # Process each surface element
         for surface_elem in surface_elements:
             # Get nodal coordinates for the 4-node surface element
@@ -497,56 +497,6 @@ class Q8FiniteElementAssembler:
         
         return F
     
-
-    def retrieve_surface_elements_from_connectivity(self, surface_node_ids):
-        """
-        Extract surface elements (quadrilaterals) from hexahedral connectivity matrix
-        based on known surface nodes.
-        
-        Parameters:
-        -----------
-        surface_node_ids : list or set
-            Node IDs that belong to the surface
-            
-        Returns:
-        --------
-        surface_elements : list
-            List of surface quadrilateral elements, each containing 4 node IDs
-        """
-        
-        surface_node_set = set(surface_node_ids)
-        surface_elements = []
-        
-        # Define the 6 faces of a Q8 hexahedral element (8-node hex)
-        # Each face is defined by 4 corner nodes in counter-clockwise order
-        # Node numbering follows standard Q8 convention:
-        #   Bottom face: nodes 0,1,2,3 (z = z_min)
-        #   Top face: nodes 4,5,6,7 (z = z_max)
-        hex_faces = [
-            [0, 1, 2, 3],  # Face 0: bottom (z = z_min)
-            [4, 7, 6, 5],  # Face 1: top (z = z_max) 
-            [0, 4, 5, 1],  # Face 2: front (y = y_min)
-            [3, 2, 6, 7],  # Face 3: back (y = y_max)
-            [0, 3, 7, 4],  # Face 4: left (x = x_min)
-            [1, 5, 6, 2]   # Face 5: right (x = x_max)
-        ]
-        
-        # Iterate through all hexahedral elements in connectivity matrix
-        for element_nodes in self.mesh.elements:
-            # element_nodes should contain 8 node IDs for Q8 hex element
-            
-            # Check each face of the current hexahedral element
-            for face_local_nodes in hex_faces:
-                # Get global node IDs for this face
-                face_global_nodes = [element_nodes[i] for i in face_local_nodes]
-                
-                # Check if all 4 face nodes are in the surface node set
-                if all(node_id in surface_node_set for node_id in face_global_nodes):
-                    # This face lies entirely on the surface
-                    surface_elements.append(face_global_nodes)
-        
-        return surface_elements
-
 
     def _compute_surface_shape_functions(self, xi, eta):
         """

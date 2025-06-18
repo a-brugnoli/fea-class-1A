@@ -1,11 +1,5 @@
 import numpy as np
 from typing import Tuple
-from src.post_processing.plot_3d import PostProcessorHexMesh
-import matplotlib.pyplot as plt
-import os
-from src.post_processing.configuration import configure_matplotlib
-configure_matplotlib()
-
 
 class StructuredHexMesh:
     """
@@ -45,6 +39,15 @@ class StructuredHexMesh:
         self.n_nodes_z = nz + 1
         self.n_nodes = self.n_nodes_x * self.n_nodes_y * self.n_nodes_z
         self.n_elements = nx * ny * nz
+
+        self.hex_faces = [
+            [0, 1, 2, 3],  # Bottom face (z = constant, lower)
+            [4, 7, 6, 5],  # Top face (z = constant, upper)
+            [0, 4, 5, 1],  # Front face (y = constant, lower)
+            [2, 6, 7, 3],  # Back face (y = constant, upper)
+            [0, 3, 7, 4],  # Left face (x = constant, lower)
+            [1, 5, 6, 2]   # Right face (x = constant, upper)
+        ]
         
         # Generate mesh
         self._generate_nodes()
@@ -159,6 +162,45 @@ class StructuredHexMesh:
         
         return boundary_faces
     
+    
+    def get_faces_from_nodes(self, surface_node_ids):
+        """
+        Extract surface elements (quadrilaterals) from node list
+        based on known surface nodes.
+        
+        Parameters:
+        -----------
+        surface_node_ids : list or set
+            Node IDs that belong to the surface
+            
+        Returns:
+        --------
+        surface_elements : list
+            List of faces on the surface, each containing 4 node IDs
+        """
+        
+        surface_node_set = set(surface_node_ids)
+        surface_elements = []
+        
+        hex_faces = self.hex_faces
+        
+        # Iterate through all hexahedral elements in connectivity matrix
+        for element_nodes in self.elements:
+            # element_nodes should contain 8 node IDs for Q8 hex element
+            
+            # Check each face of the current hexahedral element
+            for face_local_nodes in hex_faces:
+                # Get global node IDs for this face
+                face_global_nodes = [element_nodes[i] for i in face_local_nodes]
+                
+                # Check if all 4 face nodes are in the surface node set
+                if all(node_id in surface_node_set for node_id in face_global_nodes):
+                    # This face lies entirely on the surface
+                    surface_elements.append(face_global_nodes)
+        
+        return surface_elements
+    
+    
     def export_vtk(self, filename: str):
         """
         Export mesh to VTK format for visualization.
@@ -210,29 +252,3 @@ class StructuredHexMesh:
                 f"  Nodes: {info['total_nodes']}\n"
                 f"  Elements: {info['total_elements']}")
 
-
-# Example usage
-if __name__ == "__main__":
-    current_folder = os.path.dirname(os.path.abspath(__file__))
-
-    # Create a mesh for a 2×1×1 box with 4×2×2 elements
-    mesh = StructuredHexMesh(Lx=2.0, Ly=1.0, Lz=1.0, nx=4, ny=2, nz=2)
-    
-    print(mesh)
-    print("\nFirst few nodes:")
-    print(mesh.coordinates[:8])
-    print("\nFirst element connectivity:")
-    print(mesh.elements[0])
-    print("\nElement 0 center:", mesh.get_element_center(0))
-    
-    # Export to VTK for visualization
-    mesh.export_vtk(current_folder +"/box_mesh.vtk")
-    print("\nMesh exported to 'box_mesh.vtk'")
-
-    # Create post-processor
-    postproc = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
-    
-    # Test 1: Basic solid plotting
-    print("Plotting basic solid...")
-    fig1, ax1 = postproc.plot_solid(figsize=(10, 8))
-    plt.show()

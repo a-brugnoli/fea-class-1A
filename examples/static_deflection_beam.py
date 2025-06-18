@@ -4,7 +4,6 @@ from src.meshing.structured_mesh import StructuredHexMesh
 from src.models.solid import Q8FiniteElementAssembler
 from src.post_processing.plot_3d import PostProcessorHexMesh
 
-
 class CantileverBeamDeflection:
     """
     Class to compute static deflection of a cantilever beam under unit tip load.
@@ -192,9 +191,9 @@ if __name__ == "__main__":
     nu = 0.3
     
     # Mesh parameters
-    nx = 500 # Number of elements along length
-    ny = 4 # int(width/length*nx)+1
-    nz = 4 # int(height/length*nx)+1
+    nx = 100 # Number of elements along length
+    ny = 2 # int(width/length*nx)+1
+    nz = 2 # int(height/length*nx)+1
     
     print("Creating cantilever beam mesh...")
     mesh = StructuredHexMesh(length, width, height, nx, ny, nz)  # Note: y=width, z=height
@@ -218,7 +217,7 @@ if __name__ == "__main__":
     print(f"Tip deflection 3D: {results['tip_deflection']*1e3:.1f} [mm]")
     print(f"Expected tip deflection (beam theory): {tip_deflection_beam*1e3:1f} [mm]")
 
-    # plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
+    # plotter = PostProcessorHexMesh(mesh)
     # plotter.set_displacements(results['solution_vector'], scale_factor=5)
     # plotter.plot_solid()
 

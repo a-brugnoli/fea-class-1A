@@ -5,6 +5,10 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib.colors as colors
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
+from src.meshing.structured_mesh import StructuredHexMesh
+from src.post_processing.configuration import configure_matplotlib
+configure_matplotlib()
+
 
 class PostProcessorHexMesh:
     """
@@ -12,7 +16,7 @@ class PostProcessorHexMesh:
     Handles 3D rendering of hexahedral elements with flat surfaces
     """
     
-    def __init__(self, coordinates, elements):
+    def __init__(self, mesh: StructuredHexMesh):
         """
         Initialize post-processor
         
@@ -20,21 +24,15 @@ class PostProcessorHexMesh:
         coordinates: array of node coordinates (n_nodes x 3)
         elements: array of element connectivity (n_elements x 8)
         """
-        self.coordinates = np.array(coordinates)
-        self.elements = np.array(elements)
-        self.n_nodes = len(coordinates)
-        self.n_elements = len(elements)
+        self.coordinates = np.array(mesh.coordinates)
+        self.elements = np.array(mesh.elements)
+        self.n_nodes = mesh.n_nodes
+        self.n_elements = mesh.n_elements
+        
+        self.hex_faces = mesh.hex_faces
         
         # Define the 6 faces of a hexahedron (Q8 element)
         # Each face is defined by 4 nodes in counter-clockwise order
-        self.hex_faces = [
-            [0, 1, 2, 3],  # Bottom face (z = constant, lower)
-            [4, 7, 6, 5],  # Top face (z = constant, upper)
-            [0, 4, 5, 1],  # Front face (y = constant, lower)
-            [2, 6, 7, 3],  # Back face (y = constant, upper)
-            [0, 3, 7, 4],  # Left face (x = constant, lower)
-            [1, 5, 6, 2]   # Right face (x = constant, upper)
-        ]
 
         self.displacements = None 
         self.scale_factor = None
@@ -345,77 +343,3 @@ class PostProcessorHexMesh:
         print("Slice plotting functionality - to be implemented")
         pass
     
-
-# Example usage and integration with the Q8HexMesh class
-def demo_postprocessing():
-    """Demonstrate post-processing capabilities"""
-    
-    # Create a simple test mesh
-    nx, ny, nz = 3, 2, 2
-    lx, ly, lz = 2.0, 1.0, 1.0
-    
-    # Generate nodes
-    nnx, nny, nnz = nx + 1, ny + 1, nz + 1
-    nodes = []
-    
-    dx, dy, dz = lx/nx, ly/ny, lz/nz
-    for k in range(nnz):
-        for j in range(nny):
-            for i in range(nnx):
-                nodes.append([i*dx, j*dy, k*dz])
-    
-    # Generate elements
-    elements = []
-    for k in range(nz):
-        for j in range(ny):
-            for i in range(nx):
-                n1 = k * nnx * nny + j * nnx + i
-                n2 = k * nnx * nny + j * nnx + (i + 1)
-                n3 = k * nnx * nny + (j + 1) * nnx + (i + 1)
-                n4 = k * nnx * nny + (j + 1) * nnx + i
-                n5 = (k + 1) * nnx * nny + j * nnx + i
-                n6 = (k + 1) * nnx * nny + j * nnx + (i + 1)
-                n7 = (k + 1) * nnx * nny + (j + 1) * nnx + (i + 1)
-                n8 = (k + 1) * nnx * nny + (j + 1) * nnx + i
-                
-                elements.append([n1, n2, n3, n4, n5, n6, n7, n8])
-    
-    # Create post-processor
-    postproc = PostProcessorHexMesh(nodes, elements)
-    
-    # Test 1: Basic solid plotting
-    print("Plotting basic solid...")
-    fig1, ax1 = postproc.plot_solid(figsize=(10, 8))
-    plt.show()
-    
-    # Test 2: Solid with field data (example: distance from origin)
-    print("Plotting solid with field data...")
-    nodes_array = np.array(nodes)
-    field_data = np.linalg.norm(nodes_array, axis=1)  # Distance from origin
-    
-    fig2, ax2 = postproc.plot_solid(
-        field_data=field_data,
-        field_name="Distance from Origin",
-        cmap='plasma',
-        alpha=0.9
-    )
-    plt.show()
-    
-    # Test 3: Deformed solid (example displacement)
-    print("Plotting deformed solid...")
-    displacements = np.zeros_like(nodes_array)
-    # Create a simple bending displacement pattern
-    for i, node in enumerate(nodes_array):
-        x, y, z = node
-        displacements[i] = 2*np.array([0, 0, 0.1 * x * z])  # Bending in z-direction
-    
-    postproc.set_displacements(displacements)
-    fig3, ax3 = postproc.plot_solid(
-        field_data=np.linalg.norm(displacements, axis=1),
-        field_name="Displacement Magnitude",
-        cmap='coolwarm'
-    )
-    plt.show()
-
-if __name__ == "__main__":
-    demo_postprocessing()

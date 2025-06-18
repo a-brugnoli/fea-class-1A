@@ -5,6 +5,7 @@ from src.meshing.structured_mesh import StructuredHexMesh
 from src.models.solid import Q8FiniteElementAssembler  
 from src.post_processing.plot_3d import PostProcessorHexMesh
 import matplotlib.pyplot as plt
+
 import warnings
 warnings.filterwarnings('ignore')
  
@@ -283,7 +284,7 @@ if __name__ == "__main__":
     print("\nSolving modal analysis...")
     frequencies, mode_shapes = modal_analysis.solve_eigenvalue_problem(n_modes=6, sigma=1e-6)
     
-    plotter = PostProcessorHexMesh(mesh.coordinates, mesh.elements)
+    plotter = PostProcessorHexMesh(mesh)
 
     for ii in range(4):
         fig, ax = plotter.plot_mode_shape_solid(mode_shapes[:, ii], mode_number=ii+1, scale_factor=.1)
