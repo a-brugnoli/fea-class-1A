@@ -210,19 +210,23 @@ if __name__ == "__main__":
     # Solve
     solver = CantileverBeamDeflection(mesh, material_props)
     results = solver.solve(magnitude_tip_force)
-    
+
+    displacements = results['solution_vector']
+
     I_beam = (width * height**3) / 12  # Moment of inertia for rectangular cross-section
     tip_deflection_beam = magnitude_tip_force * length**3 / (3 * E * I_beam)
 
     print(f"Tip deflection 3D: {results['tip_deflection']*1e3:.1f} [mm]")
     print(f"Expected tip deflection (beam theory): {tip_deflection_beam*1e3:1f} [mm]")
 
-    # plotter = PostProcessorHexMesh(mesh)
-    # plotter.set_displacements(results['solution_vector'], scale_factor=5)
-    # plotter.plot_solid()
+    von_mises_stresses = solver.assembler.compute_global_von_mises_stresses(displacements)
 
-    # import matplotlib.pyplot as plt
-    # plt.show()
+    plotter = PostProcessorHexMesh(mesh)
+    plotter.set_displacements(displacements, scale_factor=5)
+    plotter.plot_solid(field_data=von_mises_stresses, field_name="Von Mises Stress", cmap="viridis")
+
+    import matplotlib.pyplot as plt
+    plt.show()
 
 
 

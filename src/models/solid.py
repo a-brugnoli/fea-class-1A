@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from typing import Tuple
 from src.meshing.structured_mesh import StructuredHexMesh
-
+from src.utilities.vonmises import compute_von_mises_stress
 
 
 class Q8FiniteElementAssembler:
@@ -155,13 +155,13 @@ class Q8FiniteElementAssembler:
         
         return dN
     
-    def _compute_jacobian(self, elem_nodes: np.ndarray, dN: np.ndarray) -> Tuple[np.ndarray, float]:
+    def _compute_jacobian(self, elem_coords: np.ndarray, dN: np.ndarray) -> Tuple[np.ndarray, float]:
         """
         Compute Jacobian matrix and its determinant.
         
         Parameters:
         -----------
-        elem_nodes : np.ndarray
+        elem_coords : np.ndarray
             8x3 array of element node coordinates
         dN : np.ndarray
             3x8 array of shape function derivatives
@@ -173,7 +173,7 @@ class Q8FiniteElementAssembler:
         det_J : float
             Determinant of Jacobian
         """
-        J = dN @ elem_nodes  # 3x8 @ 8x3 = 3x3
+        J = dN @ elem_coords  # 3x8 @ 8x3 = 3x3
         det_J = np.linalg.det(J)
         
         if det_J <= 0:
@@ -233,7 +233,7 @@ class Q8FiniteElementAssembler:
             24x24 element stiffness matrix
         """
         # Get element nodes
-        elem_nodes = self.mesh.coordinates[self.mesh.elements[elem_id]]
+        elem_coords = self.mesh.coordinates[self.mesh.elements[elem_id]]
         
         K_elem = np.zeros((24, 24))
         
@@ -246,7 +246,7 @@ class Q8FiniteElementAssembler:
             dN = self._shape_function_derivatives(xi, eta, zeta)
             
             # Jacobian
-            J, det_J = self._compute_jacobian(elem_nodes, dN)
+            J, det_J = self._compute_jacobian(elem_coords, dN)
             
             # Shape function derivatives in global coordinates
             dN_global = np.linalg.solve(J, dN)
@@ -304,6 +304,19 @@ class Q8FiniteElementAssembler:
         
         return M_elem
     
+
+    def get_element_dof_indices(self, element_idx):
+        """
+        Return the global displacement vector indices for the nodes of the element.
+        """
+        # Get global DOF indices for this element
+        elem_nodes = self.mesh.elements[element_idx]
+        dof_indices = []
+        for node in elem_nodes:
+            dof_indices.extend([3*node, 3*node+1, 3*node+2])
+        return dof_indices
+    
+
     def assemble_stiffness_matrix(self) -> csr_matrix:
         """
         Assemble the global stiffness matrix.
@@ -318,18 +331,13 @@ class Q8FiniteElementAssembler:
         # Use lil_matrix for efficient assembly
         K_global = lil_matrix((self.n_dofs, self.n_dofs))
         
-        for elem_id in range(self.mesh.n_elements):
-            if elem_id % 100 == 0:
-                print(f"  Processing element {elem_id}/{self.mesh.n_elements}")
+        for elem_idx in range(self.mesh.n_elements):
+            if elem_idx % 100 == 0:
+                print(f"  Processing element {elem_idx}/{self.mesh.n_elements}")
             
             # Compute element stiffness matrix
-            K_elem = self._compute_element_stiffness(elem_id)
-            
-            # Get global DOF indices for this element
-            elem_nodes = self.mesh.elements[elem_id]
-            dof_indices = []
-            for node in elem_nodes:
-                dof_indices.extend([3*node, 3*node+1, 3*node+2])
+            K_elem = self._compute_element_stiffness(elem_idx)
+            dof_indices = self.get_element_dof_indices(elem_idx)
             
             # Assemble into global matrix
             for i, glob_i in enumerate(dof_indices):
@@ -354,19 +362,14 @@ class Q8FiniteElementAssembler:
         # Use lil_matrix for efficient assembly
         M_global = lil_matrix((self.n_dofs, self.n_dofs))
         
-        for elem_id in range(self.mesh.n_elements):
-            if elem_id % 100 == 0:
-                print(f"  Processing element {elem_id}/{self.mesh.n_elements}")
+        for elem_idx in range(self.mesh.n_elements):
+            if elem_idx % 100 == 0:
+                print(f"  Processing element {elem_idx}/{self.mesh.n_elements}")
             
             # Compute element mass matrix
-            M_elem = self._compute_element_mass(elem_id)
-            
-            # Get global DOF indices for this element
-            elem_nodes = self.mesh.elements[elem_id]
-            dof_indices = []
-            for node in elem_nodes:
-                dof_indices.extend([3*node, 3*node+1, 3*node+2])
-            
+            M_elem = self._compute_element_mass(elem_idx)
+            dof_indices = self.get_element_dof_indices(elem_idx)
+
             # Assemble into global matrix
             for i, glob_i in enumerate(dof_indices):
                 for j, glob_j in enumerate(dof_indices):
@@ -388,6 +391,90 @@ class Q8FiniteElementAssembler:
         K = self.assemble_stiffness_matrix()
         M = self.assemble_mass_matrix()
         return K, M
+    
+
+    def compute_element_stresses(self, element_idx, element_displacements):
+        """
+        Compute stresses at Gauss points for a single 3D hexahedral bilinear element (H8)
+        
+        Args:
+            element_coords: Element node coordinates (8, 3) - [x, y, z]
+            element_displacements: Element displacements (24,) - [u1,v1,w1,u2,v2,w2,...]
+            D_matrix: Constitutive matrix (6, 6) for 3D elasticity
+            
+        Returns:
+            stresses: Stresses at Gauss points (n_gauss, 6) - [σx, σy, σz, τxy, τyz, τxz]
+            gauss_coords: Global coordinates of Gauss points (n_gauss, 3)
+        """
+        
+        element_stresses = np.zeros((len(self.gauss_weights), 6))
+        element_coords = self.mesh.coordinates[self.mesh.elements[element_idx]]
+        
+        for i, (xi, eta, zeta) in enumerate(self.gauss_points):
+            # H8 shape functions and derivatives
+
+            dN = self._shape_function_derivatives(xi, eta, zeta)
+            # Jacobian matrix (3x3)
+            J, _ = self._compute_jacobian(element_coords, dN)
+                        
+            # Derivatives in global coordinates
+            # Shape function derivatives in global coordinates
+            dN_global = np.linalg.solve(J, dN)
+            # Strain-displacement matrix B (6x24)
+            B = self._compute_B_matrix(dN_global)
+            
+            # Compute strains
+            element_strains = B @ element_displacements
+            
+            # Compute stresses
+            element_stresses[i] = self.D @ element_strains
+            
+        return element_stresses
+
+    
+    def compute_average_von_mises_stress(self, element_stresses):
+        """
+        Compute average von Mises stress for an element
+        Two approaches: compute von Mises at each Gauss point and then average
+        
+        Args:
+            stresses: Stress components at Gauss points (n_gauss, 6) - [σx, σy, σz, τxy, τyz, τxz]
+            
+        Returns:
+            avg_von_mises_method: Average of von Mises stresses at Gauss points
+        """
+        
+        von_mises_gauss = compute_von_mises_stress(element_stresses)
+        avg_von_mises = np.mean(von_mises_gauss)
+        
+        return avg_von_mises
+
+     
+    def compute_global_von_mises_stresses(self, displacement_vector):
+        """
+        Compute average von Mises stress for each element in the mesh.
+
+        Parameters:
+            displacement_vector : (n_nodes * 3,) ndarray
+                Global displacement vector.
+
+        Returns:
+            von_mises_stresses : (n_elements,) ndarray
+                Average von Mises stress per element.
+        """
+        von_mises_stresses = np.zeros(self.mesh.n_elements)
+
+        for elem_idx in range(self.mesh.n_elements):
+            elem_nodes = self.mesh.elements[elem_idx]
+            u_elem = displacement_vector[elem_nodes].reshape(-1)  # local displacement vector
+
+            # External functions (assumed provided)
+            stresses_at_gauss_points = self.compute_element_stresses(elem_idx, u_elem)
+            avg_vm_stress = self.compute_average_von_mises_stress(stresses_at_gauss_points)
+
+            von_mises_stresses[elem_idx] = avg_vm_stress
+
+        return von_mises_stresses
     
 
     def assemble_surface_traction_force(self, traction_vector, traction_plane='x_max'):
