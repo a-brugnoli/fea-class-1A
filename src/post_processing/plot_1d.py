@@ -29,7 +29,7 @@ def animate_1d_mode(coordinates, mode_shape, omega_mode):
     return anim
 
 
-def plot_1d_vertical_displacement(time_step, coordinates, values_dofs):
+def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, interval=1000):
     configure_matplotlib()
     fig, ax = plt.subplots()
 

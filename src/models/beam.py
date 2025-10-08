@@ -29,7 +29,8 @@ class Beam:
         
         # Element length
         self.el_size = length / num_elements
-        
+
+
     def generate_stiffness_matrix(self):
         """Generate global stiffness matrix using finite element method"""
         k_local = np.array([
@@ -94,7 +95,7 @@ if __name__ == "__main__":
         'A': A
     }
 
-    num_elements = 20
+    num_elements = 200
     coordinates = np.linspace(0, length, num_elements + 1)
     num_dofs = 2*len(coordinates)
 
@@ -115,43 +116,43 @@ if __name__ == "__main__":
 
     eigenvectors = restore_data(modes_red, dofs_bcs)
 
-    # n_modes = 4
-    # for ii in range(n_modes):
-    #     plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
-    #     plt.legend()
+    n_modes = 4
+    for ii in range(n_modes):
+        plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
+        plt.legend()
 
-    num_mode = 1
+    # num_mode = 1
     # mode_shape = eigenvectors[::2, num_mode]
     # omega_mode = omega_vec[num_mode]
     # animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
 
 
-    # Initial conditions corresponding to first mode
-    q0 = np.zeros(num_dofs)
-    v0 = np.zeros(num_dofs)
+    # # Initial conditions corresponding to first mode
+    # q0 = np.zeros(num_dofs)
+    # v0 = np.zeros(num_dofs)
     
-    q0[::2] = eigenvectors[0::2, num_mode]
-    q0[1::2] = eigenvectors[1::2, num_mode]
+    # q0[::2] = eigenvectors[0::2, num_mode]
+    # q0[1::2] = eigenvectors[1::2, num_mode]
 
-    q0_red = np.delete(q0, dofs_bcs)
-    v0_red = np.delete(v0, dofs_bcs)
+    # q0_red = np.delete(q0, dofs_bcs)
+    # v0_red = np.delete(v0, dofs_bcs)
 
-    # This part is to be done by the students:
-    # - declare dofs subjected to bcs
-    # - extract modes
-    # - plot them
-    # For clamped bcs and for free bcs
+    # # This part is to be done by the students:
+    # # - declare dofs subjected to bcs
+    # # - extract modes
+    # # - plot them
+    # # For clamped bcs and for free bcs
 
 
-    # Solve dynamic response
-    T_end = 1  # Total simulation time
-    dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
-    print(f"Time step: {dt:.4f} [s]")
-    n_times = int(np.ceil(T_end/dt))
-    q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
+    # # Solve dynamic response
+    # T_end = 1  # Total simulation time
+    # dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
+    # print(f"Time step: {dt:.4f} [s]")
+    # n_times = int(np.ceil(T_end/dt))
+    # q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
 
-    q_array = restore_data(q_array_red, dofs_bcs)
-    # Post-processing
-    animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
+    # q_array = restore_data(q_array_red, dofs_bcs)
+    # # Post-processing
+    # animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
 
     plt.show()
