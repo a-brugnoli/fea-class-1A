@@ -2,7 +2,7 @@ import numpy as np
 from scipy.sparse import csr_matrix, lil_matrix
 from typing import Tuple
 from src.meshing.structured_mesh import StructuredHexMesh
-from src.utilities.vonmises import compute_von_mises_stress
+from src.utilities.vonmises import von_mises_stress
 
 
 class Q8FiniteElementAssembler:
@@ -45,6 +45,7 @@ class Q8FiniteElementAssembler:
         # Initialize matrices
         self.K_global = None
         self.M_global = None
+ 
     
     def _setup_gauss_quadrature(self):
         """Set up Gauss quadrature points and weights for 2x2x2 integration."""
@@ -57,7 +58,8 @@ class Q8FiniteElementAssembler:
         
         # Weights (all equal for 2x2x2 Gauss quadrature)
         self.gauss_weights = np.ones(8)
-    
+
+
     def _compute_material_matrix(self) -> np.ndarray:
         """
         Compute the material matrix D for 3D elasticity.
@@ -83,7 +85,8 @@ class Q8FiniteElementAssembler:
         D[3, 3] = D[4, 4] = D[5, 5] = shear_factor
         
         return D
-    
+
+
     def _shape_functions(self, xi: float, eta: float, zeta: float) -> np.ndarray:
         """
         Compute Q8 shape functions at natural coordinates (xi, eta, zeta).
@@ -111,7 +114,8 @@ class Q8FiniteElementAssembler:
         N[7] = 0.125 * (1 - xi) * (1 + eta) * (1 + zeta)
         
         return N
-    
+
+
     def _shape_function_derivatives(self, xi: float, eta: float, zeta: float) -> np.ndarray:
         """
         Compute derivatives of Q8 shape functions with respect to natural coordinates.
@@ -154,7 +158,8 @@ class Q8FiniteElementAssembler:
         dN[2, 7] = 0.125 * (1 - xi) * (1 + eta)
         
         return dN
-    
+
+
     def _compute_jacobian(self, elem_coords: np.ndarray, dN: np.ndarray) -> Tuple[np.ndarray, float]:
         """
         Compute Jacobian matrix and its determinant.
@@ -180,7 +185,8 @@ class Q8FiniteElementAssembler:
             raise ValueError(f"Negative or zero Jacobian determinant: {det_J}")
         
         return J, det_J
-    
+
+
     def _compute_B_matrix(self, dN_global: np.ndarray) -> np.ndarray:
         """
         Compute the strain-displacement matrix B.
@@ -217,7 +223,8 @@ class Q8FiniteElementAssembler:
             B[5, col + 2] = dN_global[0, i]  # ∂w/∂x
         
         return B
-    
+
+
     def _compute_element_stiffness(self, elem_id: int) -> np.ndarray:
         """
         Compute element stiffness matrix for element elem_id.
@@ -258,7 +265,8 @@ class Q8FiniteElementAssembler:
             K_elem += B.T @ self.D @ B * det_J * weight
         
         return K_elem
-    
+
+
     def _compute_element_mass(self, elem_id: int) -> np.ndarray:
         """
         Compute element mass matrix for element elem_id.
@@ -348,6 +356,7 @@ class Q8FiniteElementAssembler:
         print("Stiffness matrix assembly complete.")
         return self.K_global
     
+
     def assemble_mass_matrix(self) -> csr_matrix:
         """
         Assemble the global mass matrix.
@@ -379,6 +388,7 @@ class Q8FiniteElementAssembler:
         print("Mass matrix assembly complete.")
         return self.M_global
     
+
     def assemble_matrices(self) -> Tuple[csr_matrix, csr_matrix]:
         """
         Assemble both stiffness and mass matrices.
@@ -393,7 +403,7 @@ class Q8FiniteElementAssembler:
         return K, M
     
 
-    def compute_element_stresses(self, element_idx, element_displacements):
+    def compute_element_strains_stresses(self, element_idx, element_displacements):
         """
         Compute stresses at Gauss points for a single 3D hexahedral bilinear element (H8)
         
@@ -403,8 +413,11 @@ class Q8FiniteElementAssembler:
             D_matrix: Constitutive matrix (6, 6) for 3D elasticity
             
         Returns:
-            stresses: Stresses at Gauss points (n_gauss, 6) - [σx, σy, σz, τxy, τyz, τxz]
-            gauss_coords: Global coordinates of Gauss points (n_gauss, 3)
+            strains: Stresses at Gauss points (n_gauss, 6) 
+            [epsilon_x, epsilon_y, epsilon_z, gamma_xy, gamma_yz, gamma_xz]
+
+            stresses: Stresses at Gauss points (n_gauss, 6) 
+            [σx, σy, σz, τxy, τyz, τxz]
         """
         
         element_stresses = np.zeros((len(self.gauss_weights), 6))
@@ -429,53 +442,47 @@ class Q8FiniteElementAssembler:
             # Compute stresses
             element_stresses[i] = self.D @ element_strains
             
-        return element_stresses
+        return element_strains, element_stresses
 
     
-    def compute_average_von_mises_stress(self, element_stresses):
+    def compute_strain_stress_tensors(self, displacement_vector):
         """
-        Compute average von Mises stress for an element
-        Two approaches: compute von Mises at each Gauss point and then average
-        
-        Args:
-            stresses: Stress components at Gauss points (n_gauss, 6) - [σx, σy, σz, τxy, τyz, τxz]
-            
-        Returns:
-            avg_von_mises_method: Average of von Mises stresses at Gauss points
-        """
-        
-        von_mises_gauss = compute_von_mises_stress(element_stresses)
-        avg_von_mises = np.mean(von_mises_gauss)
-        
-        return avg_von_mises
-
-     
-    def compute_global_von_mises_stresses(self, displacement_vector):
-        """
-        Compute average von Mises stress for each element in the mesh.
+        Compute average stress for each element in the mesh.
 
         Parameters:
-            displacement_vector : (n_nodes * 3,) ndarray
+            displacement_vector : (n_nodes, 3) ndarray
                 Global displacement vector.
 
         Returns:
+            average_strains : (n_elements, 6) ndarray
+                order of the strain components: [εx, εy, εz, γxy, γyz, γxz]
+                Average strain per element. 
+
+            average_stresses : (n_elements, 6) ndarray
+            order of the stress components: [σx, σy, σz, τxy, τyz, τxz]
+                Average stress per element.
+
             von_mises_stresses : (n_elements,) ndarray
                 Average von Mises stress per element.
         """
-        von_mises_stresses = np.zeros(self.mesh.n_elements)
+        average_strains = np.zeros((self.mesh.n_elements, 6))
+        average_stresses = np.zeros((self.mesh.n_elements, 6))
 
         for elem_idx in range(self.mesh.n_elements):
             elem_nodes = self.mesh.elements[elem_idx]
             u_elem = displacement_vector[elem_nodes].reshape(-1)  # local displacement vector
 
             # External functions (assumed provided)
-            stresses_at_gauss_points = self.compute_element_stresses(elem_idx, u_elem)
-            avg_vm_stress = self.compute_average_von_mises_stress(stresses_at_gauss_points)
+            strains_at_gauss_points, stresses_at_gauss_points = self.compute_element_strains_stresses(elem_idx, u_elem)
 
-            von_mises_stresses[elem_idx] = avg_vm_stress
+            average_strains[elem_idx] = np.mean(strains_at_gauss_points, axis=0)
+            average_stresses[elem_idx] = np.mean(stresses_at_gauss_points, axis=0)
 
-        return von_mises_stresses
-    
+        von_mises_stresses = von_mises_stress(average_stresses)
+
+
+        return average_strains, average_stresses, von_mises_stresses
+
 
     def assemble_surface_traction_force(self, traction_vector, traction_plane='x_max'):
         """
@@ -663,29 +670,3 @@ class Q8FiniteElementAssembler:
         return info
 
 
-if __name__ == "__main__":   
-    # Create a simple mesh
-    mesh = StructuredHexMesh(Lx=1.0, Ly=1.0, Lz=1.0, nx=2, ny=2, nz=2)
-    
-    # Material properties for steel
-    material_props = {
-        'E': 210e9,      # Young's modulus (Pa)
-        'nu': 0.3,       # Poisson's ratio
-        'rho': 7850.0    # Density (kg/m³)
-    }
-    
-    # Create assembler
-    assembler = Q8FiniteElementAssembler(mesh, material_props)
-    
-    # Assemble matrices
-    K, M = assembler.assemble_matrices()
-    
-    # Print information
-    print("\nMatrix Assembly Results:")
-    info = assembler.get_matrix_info()
-    for key, value in info.items():
-        print(f"  {key}: {value}")
-    
-    print(f"\nStiffness matrix shape: {K.shape}")
-    print(f"Mass matrix shape: {M.shape}")
-    print(f"Stiffness matrix condition number estimate: {np.linalg.cond(K.toarray()[:100, :100]):.2e}")

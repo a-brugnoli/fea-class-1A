@@ -1,5 +1,5 @@
 import numpy as np
-def compute_von_mises_stress(stresses):
+def von_mises_stress(stresses):
         """
         Compute von Mises stress from 3D stress components
         

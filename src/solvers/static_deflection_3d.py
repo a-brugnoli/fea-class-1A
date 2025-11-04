@@ -1,8 +1,7 @@
 import numpy as np
 from scipy.sparse.linalg import spsolve
 from src.meshing.structured_mesh import StructuredHexMesh
-from src.models.solid import Q8FiniteElementAssembler
-from src.post_processing.plot_3d import PostProcessorHexMesh
+from src.models.hexahedral_solid import Q8FiniteElementAssembler
 
 class CantileverBeamDeflection:
     """
@@ -99,15 +98,16 @@ class CantileverBeamDeflection:
         F_reduced = F[self.free_dofs]
         
         return K_reduced, F_reduced
+  
     
     def _create_force_vector(self, force):
         """
-        Create force vector with unit tip load.
+        Create force vector with tip load.
         
         Returns:
         --------
         F : array
-            Global force vector with unit load at tip
+            Global force vector with load at tip
         """
         # Free end: nodes at maximum x-coordinate  
         x_coords = np.array(self.mesh.coordinates)[:, 0]
@@ -128,16 +128,16 @@ class CantileverBeamDeflection:
     
     def solve(self, magnitude_tip_force=1.0):
         """
-        Solve for static deflection under unit tip load.
+        Solve for static deflection under traction on the right surface.
         
         Returns:
         --------
         deflections : dict
             Dictionary containing:
-            - 'displacements': nodal displacements
-            - 'rotations': nodal rotations  
             - 'tip_deflection': maximum deflection at tip
-            - 'solution_vector': full DOF solution vector
+            - 'displacement_vector': full DOF displacement vector (N_nodes, 3)
+            - 'von_mises_stresses': array of von Mises stresses at each element (N_elements,)
+            - 'stress_tensor': array of average stress tensors at each element (N_elements, 6)
         """
         # Assemble global stiffness matrix
         print("Assembling stiffness matrix...")
@@ -167,66 +167,19 @@ class CantileverBeamDeflection:
         u_full[self.free_dofs] = u_reduced
 
         tip_deflection = np.max(np.abs(u_full))  # y-displacement at tip nodes
-        
+
+        displacements = u_full.reshape(-1, 3)  # Reshape to (N_nodes, 3) meaning (u,v,w) per node
+
+        strain_tensor, stress_tensor, von_mises_stress = \
+            self.assembler.compute_strain_stress_tensors(displacements)
+
         results = {
             'tip_deflection': tip_deflection,
-            'solution_vector': u_full.reshape(-1, 3),  
+            'displacement_vector': displacements,  
+            'strain_tensor': strain_tensor,
+            'stress_tensor': stress_tensor,
+            'von_mises_stresses': von_mises_stress
         }
         
         return results
     
-
-# Example usage and testing
-if __name__ == "__main__":
-    # Import required classes
-    # Note: In practice, you would import these from separate files
-    
-    # Cantilever beam dimensions
-    length = 1   # Length (m)
-    width = 0.01  # Width (m)
-    height = 0.01   # Height (m) 
-
-    rho = 2700  # Density (kg/m^3)
-    E = 69e9  # Young's modulus (Pa) for steel
-    nu = 0.3
-    
-    # Mesh parameters
-    nx = 100 # Number of elements along length
-    ny = 2 # int(width/length*nx)+1
-    nz = 2 # int(height/length*nx)+1
-    
-    print("Creating cantilever beam mesh...")
-    mesh = StructuredHexMesh(length, width, height, nx, ny, nz)  # Note: y=width, z=height
-    print(f"  Mesh: {nx}×{ny}×{nz} elements, {mesh.n_nodes} nodes")
-
-    # Material properties (Steel)
-    material_props = {
-        'E': E,      # Young's modulus (Pa)
-        'nu': nu,       # Poisson's ratio
-        'rho': rho,  # Density (kg/m^3)
-    }
-
-    magnitude_tip_force = 1  # Unit force at tip (N)
-    # Solve
-    solver = CantileverBeamDeflection(mesh, material_props)
-    results = solver.solve(magnitude_tip_force)
-
-    displacements = results['solution_vector']
-
-    I_beam = (width * height**3) / 12  # Moment of inertia for rectangular cross-section
-    tip_deflection_beam = magnitude_tip_force * length**3 / (3 * E * I_beam)
-
-    print(f"Tip deflection 3D: {results['tip_deflection']*1e3:.1f} [mm]")
-    print(f"Expected tip deflection (beam theory): {tip_deflection_beam*1e3:1f} [mm]")
-
-    von_mises_stresses = solver.assembler.compute_global_von_mises_stresses(displacements)
-
-    plotter = PostProcessorHexMesh(mesh)
-    plotter.set_displacements(displacements, scale_factor=5)
-    plotter.plot_solid(field_data=von_mises_stresses, field_name="Von Mises Stress", cmap="viridis")
-
-    import matplotlib.pyplot as plt
-    plt.show()
-
-
-
