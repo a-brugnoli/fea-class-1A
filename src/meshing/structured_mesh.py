@@ -10,8 +10,7 @@ class StructuredHexMesh:
     """
     
     def __init__(self, Lx: float, Ly: float, Lz: float, 
-                 nx: int, ny: int, nz: int,
-                 origin: Tuple[float, float, float] = (0.0, 0.0, 0.0)):
+                 nx: int, ny: int, nz: int):
         """
         Initialize the structured hexahedral mesh.
         
@@ -26,7 +25,7 @@ class StructuredHexMesh:
         """
         self.Lx, self.Ly, self.Lz = Lx, Ly, Lz
         self.nx, self.ny, self.nz = nx, ny, nz
-        self.origin = np.array(origin)
+        self.origin = np.array([0.0, -Ly/2, -Lz/2])  # Centered in y and z
         
         # Calculate spacing
         self.dx = Lx / nx

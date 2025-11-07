@@ -3,13 +3,13 @@ from scipy.sparse.linalg import spsolve
 from src.meshing.structured_mesh import StructuredHexMesh
 from src.models.hexahedral_solid import Q8FiniteElementAssembler
 
-class CantileverBeamDeflection:
+class CantileverBeamStaticSolver:
     """
     Class to compute static deflection of a cantilever beam under unit tip load.
     
     Assumes:
     - Beam is fixed at one end (x=0) and free at the other end
-    - Unit load is applied at the tip in the negative y-direction
+    - Unit load is applied at the tip in the negative z-direction
     - 2D beam elements with 2 DOF per node (y-displacement and rotation)
     """
     
@@ -107,7 +107,7 @@ class CantileverBeamDeflection:
         Returns:
         --------
         F : array
-            Global force vector with load at tip
+            Global force vector with load at tip along the downward z-direction
         """
         # Free end: nodes at maximum x-coordinate  
         x_coords = np.array(self.mesh.coordinates)[:, 0]

@@ -1,5 +1,5 @@
 from src.meshing.structured_mesh import StructuredHexMesh
-from src.solvers.static_deflection_3d import CantileverBeamDeflection
+from solvers.static_analysis_3d import CantileverBeamStaticSolver
 import numpy as np
 import matplotlib.pyplot as plt
 import time # To measure computational time 
@@ -16,15 +16,15 @@ width = 10  # Width (mm)
 height = 10  # Height (mm) 
 
 # Material properties (Aluminum)
-rho = 2.7 * 1e-9  # Density (tonne/mm^3) Only for dynamic problems
+rho = 0  # Density (tonne/mm^3) Only for dynamic problems
 E = 69e3  # Young's modulus (MPa) 
 nu = 0.3  # Poisson's ratio
 
 # Material properties dictionary
 material_props = {
-    'E': E,      # Young's modulus (Pa)
+    'E': E,      # Young's modulus (MPa)
     'nu': nu,    # Poisson's ratio
-    'rho': rho,  # Density (kg/m^3)
+    'rho': rho,  # Density (tonne/mm^3)
 }
 
 # Magnitude of tip force
@@ -52,7 +52,7 @@ for i, n_elements_x in enumerate(n_elements_along_length):
     mesh = StructuredHexMesh(length, width, height, n_elements_x, n_elements_y, n_elements_z)
     print(f"  Mesh: {n_elements_x}×{n_elements_y}×{n_elements_z} elements, {mesh.n_nodes} nodes")
     # Solve
-    solver = CantileverBeamDeflection(mesh, material_props)
+    solver = CantileverBeamStaticSolver(mesh, material_props)
     results = solver.solve(magnitude_tip_force)
 
     tip_deflection_3d_vec[i] = results['tip_deflection']
