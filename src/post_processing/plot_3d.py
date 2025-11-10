@@ -134,7 +134,7 @@ class PostProcessorHexMesh:
     
 
     def plot_solid(self, field_data=None, field_name="Field", cmap='viridis', 
-                   alpha=0.8, show_edges=True, edge_color='black', edge_alpha=0.3,
+                   face_alpha=0.8, show_edges=False, edge_color='black', edge_alpha=0.8,
                    skip_internal=True, figsize=(12, 9), original_outline=True):
         """
         Plot the solid with flat surfaces
@@ -143,12 +143,13 @@ class PostProcessorHexMesh:
         field_data: optional field data for coloring (per node or per element)
         field_name: name of the field for colorbar
         cmap: colormap name
-        alpha: transparency of faces
+        face_alpha: transparency of faces
         show_edges: whether to show face edges
         edge_color: color of edges
         edge_alpha: transparency of edges
         skip_internal: whether to skip internal faces
         figsize: figure size
+        original_outline: if True and displacements are set, plot original mesh outline for reference
         """
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111, projection='3d')
@@ -173,8 +174,6 @@ class PostProcessorHexMesh:
                     elem_nodes = self.elements[elem_id]
                     
                     # # Get face node indices (need to map back to original nodes)
-                    # face_center = np.mean(face, axis=0)
-                    # This is approximate - for exact mapping, we'd need to track node indices
                     face_field_avg = np.mean(field_data[elem_nodes])
                     face_colors.append(face_field_avg)
                     
@@ -204,7 +203,7 @@ class PostProcessorHexMesh:
             
             # Add faces to plot
             poly3d = [[tuple(vertex) for vertex in face] for face in face_collection]
-            face_patches = Poly3DCollection(poly3d, alpha=alpha)
+            face_patches = Poly3DCollection(poly3d, alpha=face_alpha)
             face_patches.set_facecolors(colors_list)
             
             if show_edges:
@@ -223,7 +222,7 @@ class PostProcessorHexMesh:
         else:
             # Uniform coloring
             poly3d = [[tuple(vertex) for vertex in face] for face in all_faces]
-            face_patches = Poly3DCollection(poly3d, alpha=alpha, facecolors='lightblue')
+            face_patches = Poly3DCollection(poly3d, alpha=face_alpha, facecolors='lightblue')
             
             if show_edges:
                 face_patches.set_edgecolors(edge_color)
@@ -233,17 +232,18 @@ class PostProcessorHexMesh:
         
         if self.displacements is not None and original_outline:
             # Plot original mesh outline
-            all_faces, _ = self.get_all_faces(skip_internal=True, displaced=False)
+            all_faces_not_displaced, _ = self.get_all_faces(skip_internal=True, displaced=False)
             
-            # Plot original faces as wireframe
-            for face in all_faces:
-                # Plot face edges
-                for i in range(4):
-                    start = face[i]
-                    end = face[(i+1)%4]
-                    ax.plot3D([start[0], end[0]], [start[1], end[1]], [start[2], end[2]], 
-                            'k--', alpha=0.3, linewidth=0.5)
-        
+            # Uniform coloring
+            poly3d_not_displaced = [[tuple(vertex) for vertex in face] for face in all_faces_not_displaced]
+            face_patches_not_displaced = Poly3DCollection(poly3d_not_displaced, alpha=0.2, facecolors='grey')
+            
+            if show_edges:
+                face_patches_not_displaced.set_edgecolors(edge_color)
+                face_patches_not_displaced.set_linewidths(0.5)
+            
+            ax.add_collection3d(face_patches_not_displaced)
+
 
         # Set axis properties
         self._set_axis_properties(ax)
@@ -253,10 +253,19 @@ class PostProcessorHexMesh:
             title = "Deformed 3D Mesh. Scale factor: x{:.1f}".format(self.scale_factor)
         else:
             title = "3D Mesh"
-        if field_data is not None:
-            title += f" - {field_name}"
+
         ax.set_title(title)
-        
+
+        # # --- Disable all interactive mouse events ---
+        # canvas = ax.figure.canvas
+        # for event_name in ['button_press_event', 'button_release_event', 
+        #                 'scroll_event', 'motion_notify_event']:
+        #     if event_name in canvas.callbacks.callbacks:
+        #         # Disconnect every callback associated with that event
+        #         callback_dict = canvas.callbacks.callbacks[event_name]
+        #         for cid in list(callback_dict.keys()):
+        #             canvas.mpl_disconnect(cid)
+
         return fig, ax
     
     
@@ -293,6 +302,16 @@ class PostProcessorHexMesh:
         if frequency is not None:
             title += f" - {frequency:.2f} Hz"
         ax.set_title(title)
+
+        # # --- Disable all interactive mouse events ---
+        # canvas = ax.figure.canvas
+        # for event_name in ['button_press_event', 'button_release_event', 
+        #                 'scroll_event', 'motion_notify_event']:
+        #     if event_name in canvas.callbacks.callbacks:
+        #         # Disconnect every callback associated with that event
+        #         callback_dict = canvas.callbacks.callbacks[event_name]
+        #         for cid in list(callback_dict.keys()):
+        #             canvas.mpl_disconnect(cid)
         
         return fig, ax
     
