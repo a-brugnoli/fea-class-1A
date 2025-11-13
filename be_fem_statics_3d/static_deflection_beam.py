@@ -1,6 +1,7 @@
 from src.meshing.structured_mesh import StructuredHexMesh
 from src.solvers.static_analysis_3d import CantileverBeamStaticSolver
 from src.post_processing.plot_3d import PostProcessorHexMesh
+
 import matplotlib.pyplot as plt
 import os
 import numpy as np

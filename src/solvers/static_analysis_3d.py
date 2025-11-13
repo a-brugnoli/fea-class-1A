@@ -100,31 +100,31 @@ class CantileverBeamStaticSolver:
         return K_reduced, F_reduced
   
     
-    def _create_force_vector(self, force):
-        """
-        Create force vector with tip load.
+    # def _create_force_vector(self, force):
+    #     """
+    #     Create force vector with tip load.
         
-        Returns:
-        --------
-        F : array
-            Global force vector with load at tip along the downward z-direction
-        """
-        # Free end: nodes at maximum x-coordinate  
-        x_coords = np.array(self.mesh.coordinates)[:, 0]
+    #     Returns:
+    #     --------
+    #     F : array
+    #         Global force vector with load at tip along the downward z-direction
+    #     """
+    #     # Free end: nodes at maximum x-coordinate  
+    #     x_coords = np.array(self.mesh.coordinates)[:, 0]
 
-        max_x = np.max(x_coords)
+    #     max_x = np.max(x_coords)
 
-        self.traction_nodes = np.where(np.isclose(x_coords, max_x,rtol=1e-10))[0]
+    #     self.traction_nodes = np.where(np.isclose(x_coords, max_x,rtol=1e-10))[0]
 
-        value_nodal_force = - force / len(self.traction_nodes)  # Distribute load evenly
-        F = np.zeros(self.n_dofs)
+    #     value_nodal_force = - force / len(self.traction_nodes)  # Distribute load evenly
+    #     F = np.zeros(self.n_dofs)
         
-        # Apply unit downward force at free end nodes
-        for node in self.traction_nodes:
-            dof_along_z = 3 * node + 2  # z-displacement DOF
-            F[dof_along_z] = value_nodal_force  # Distribute load among tip nodes
+    #     # Apply unit downward force at free end nodes
+    #     for node in self.traction_nodes:
+    #         dof_along_z = 3 * node + 2  # z-displacement DOF
+    #         F[dof_along_z] = value_nodal_force  # Distribute load among tip nodes
             
-        return F
+    #     return F
     
     def solve(self, magnitude_tip_force=1.0):
         """
