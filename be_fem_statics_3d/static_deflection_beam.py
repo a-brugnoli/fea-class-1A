@@ -56,7 +56,9 @@ plt.grid()
 plt.savefig(os.path.join(results_folder, "deflection_u_z_along_x.pdf"), format='pdf')
 
 # Results are extracted at specific x locations along the beam
-x_point_vec = [1, 500, 999]
+# x_point_vec = [1, 500, 999]
+x_point_vec = [500]
+
 for x_point in x_point_vec:
     # Extract deflection profile along y-axis at x_point and z=height/2 
     y_coords, u_y_along_y = plotter.extract_line_profile(
