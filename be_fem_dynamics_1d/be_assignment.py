@@ -31,7 +31,7 @@ def assemble_global_matrix(num_elements: int, element_matrix):
     global_matrix = np.zeros((n_dofs, n_dofs))
     
     for i in range(num_elements):
-        # Find the global DOF indices for the current element
+        # Find the global DOF indices for the current element (To be done by students)
         indices = ...
 
         for i in range(4):
@@ -56,48 +56,45 @@ def compute_natural_frequencies(K, M, num_modes=4):
 
 def apply_boundary_conditions(K, M, bc_dofs):
     """Apply boundary conditions"""
-    # Fix first and last degrees of freedom
+    #To be done by students
     all_dofs = np.arange(M.shape[0])
-    free_dofs = np.setdiff1d(all_dofs, bc_dofs)
+    free_dofs = ...
 
-    K_red = K[free_dofs, :][:, free_dofs]
-    M_red = M[free_dofs, :][:, free_dofs]
+    K_red = ...
+    M_red = ...
 
     return K_red, M_red
 
 
-L = 1
-n_elements = 20
+L = 18.3
+width = 3
+height = 0.06 
+A = width * height  # 0.18
+I = width * height**3 / 12  # 5.4e-5
+
+n_elements = 10
 coordinates = np.linspace(0, L, n_elements + 1)
 
 L_element = L / n_elements
-E = 1   # 168e9
-rho = 1 # 7850
-A = 1   # 0.01
-I = 1   # 8.333e-6
+E = 168e9
+rho = 2330
+
 
 M_global = assemble_global_matrix(n_elements, \
                                   element_mass_matrix(L_element, rho, A))
 K_global = assemble_global_matrix(n_elements, \
                                   element_stiffness_matrix(L_element, rho, A))
 
-# frequencies, eigenvectors_free = compute_natural_frequencies(K_global, M_global)
-# for ii, freq in enumerate(frequencies):
-#     print(f"Mode {ii+1}: {freq:.4f} Hz")
-
-#     plt.plot(coordinates, eigenvectors_free[::2, ii], label=f"$\omega_{ii+1}={freq:.1f}$ [rad/s]")
-#     plt.title(f"Mode {ii+1} Shape")
-#     plt.xlabel("Position along beam (m)")
-#     plt.grid()
-# plt.show()
+frequencies, eigenvectors_free = compute_natural_frequencies(K_global, M_global)
+for ii, freq in enumerate(frequencies):
+    print(f"Mode {ii+1}: {freq:.4f} Hz")
+plt.show()
 
 dofs_bcs = [0, 1]
     
 # Apply boundary conditions
 K_red, M_red = apply_boundary_conditions(K_global, M_global, dofs_bcs)
-
 frequencies_red, modes_red = compute_natural_frequencies(K_red,  M_red)
-
 
 n_modes = 4
 
