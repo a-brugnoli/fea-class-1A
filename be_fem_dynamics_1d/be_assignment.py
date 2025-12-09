@@ -8,6 +8,7 @@ def element_stiffness_matrix(L_element, E, I):
 
     ### To be done by students
     K_element = ...
+
     return K_element
     
 
@@ -15,9 +16,8 @@ def element_mass_matrix(L_element, rho, A):
     """Generate element mass matrix using finite element method"""
 
     ### To be done by students
-
     M_element = ...
-    
+
     return M_element
 
 
@@ -31,7 +31,8 @@ def assemble_global_matrix(num_elements: int, element_matrix):
     global_matrix = np.zeros((n_dofs, n_dofs))
     
     for i in range(num_elements):
-        indices = [2*i, 2*i+1, 2*i+2, 2*i+3]
+        # Find the global DOF indices for the current element
+        indices = ...
 
         for i in range(4):
             for j in range(4):
