@@ -120,29 +120,29 @@ n_modes = 4
 eigenvectors_cantilever = restore_data(modes_red, dofs_bcs)
 print(f"Natural Frequencies (Cantilever Beam) for {n_elements} elements:")
 
-plt.figure()
-for ii, freq in enumerate(frequencies_red):
-    print(f"Mode {ii+1}: {freq:.4f} Hz")
+# plt.figure()
+# for ii, freq in enumerate(frequencies_red):
+#     print(f"Mode {ii+1}: {freq:.4f} Hz")
 
-    plt.plot(coordinates, eigenvectors_cantilever[::2, ii], label=f"$\omega_{ii+1}={freq:.4f}$ [rad/s]")
-    plt.title(f"Mode {ii+1} Shape")
-    plt.xlabel("Position along beam (m)")
-    plt.grid()
-plt.legend()
-plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
-plt.show()
+#     plt.plot(coordinates, eigenvectors_cantilever[::2, ii], label=f"$\omega_{ii+1}={freq:.4f}$ [rad/s]")
+#     plt.title(f"Mode {ii+1} Shape")
+#     plt.xlabel("Position along beam (m)")
+#     plt.grid()
+# plt.legend()
+# plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
+# plt.show()
 
 
 # Vecteur effort 
 force_ext = 25
 ### To be done by students
-force_vector=np.zeros((M_red.shape[0],1))
-force_vector[-2,0]=force_ext
+force_vector=np.zeros(M_red.shape[0])
+force_vector[-2]=force_ext
 
 # Amortissement 
 alpha = 0.000317
 beta = 0
-C_red=alpha*K_red + beta*M_red
+C_red = alpha*K_red + beta*M_red
 
 n_samples_freq = 500
 omega_vec = 2*np.pi*np.linspace(0, 3*frequencies_red[-1], n_samples_freq)
@@ -156,73 +156,61 @@ for ii in range(n_samples_freq):
     # disp_om=np.dot(np.linalg.inv(impedence_matrix), force_vector)
     disp_om=np.linalg.solve(impedence_matrix, force_vector)
 
-    amplitude_displacement_freq[ii]=20*np.log10(abs(disp_om[-2,0]))
+    amplitude_displacement_freq[ii]=20*np.log10(abs(disp_om[-2]))
 
 
 # Projection 
-
-## To be done by students
 n_mode_projection=2
 Phi = modes_red[:,:n_mode_projection]
 
-K_mod=np.dot(np.dot(np.transpose(Phi),K_red),Phi)
-M_mod=np.dot(np.dot(np.transpose(Phi),M_red),Phi)
-C_mod=np.dot(np.dot(np.transpose(Phi),C_red),Phi)
-
-
+## To be done by students
 K_mod= Phi.T @ K_red @ Phi
 M_mod= Phi.T @ M_red @ Phi
 C_mod= Phi.T @ C_red @ Phi
+f_mod= Phi.T @ force_vector
 
-print(f"C_mod: {C_mod}")
-f_mod=np.transpose(Phi)@ force_vector
-
-amplitude_disp_proj=np.zeros((n_samples_freq, 1))
+amplitude_disp_proj_dB=np.zeros((n_samples_freq, 1))
 # Reponse en frequence
 for ii in range(n_samples_freq):
-
     w = omega_vec[ii]
     impedence_matrix_proj=-M_mod*w**2+1j*w*C_mod+K_mod
-
-    eta_mod = np.linalg.inv(impedence_matrix_proj) @ f_mod
-    displacement_modal=np.dot(Phi, eta_mod)
-
-    amplitude_disp_proj[ii]=20*np.log10(abs(displacement_modal[-2,0]))
+    eta_mod = np.linalg.solve(impedence_matrix_proj, f_mod)
+    displacement_modal=Phi @ eta_mod
+    amplitude_disp_proj_dB[ii]=20*np.log10(abs(displacement_modal[-2]))
     
-##############################
-plt.plot(omega_vec/2/np.pi,amplitude_displacement_freq, 'b', label='Full model')
-plt.plot(omega_vec/2/np.pi,amplitude_disp_proj, 'r--', label='Reduced model')
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Displacement magnitude [dB]')
-plt.legend()
-plt.show()
+# ##############################
+# plt.figure()
+# plt.plot(omega_vec/2/np.pi,amplitude_displacement_freq, 'b', label='Full model')
+# plt.plot(omega_vec/2/np.pi,amplitude_disp_proj_dB, 'r--', label='Reduced model')
+# plt.xlabel('Frequency [Hz]')
+# plt.ylabel('Displacement magnitude [dB]')
+# plt.legend()
+# plt.show()
 
 
-# max_amplitude = np.max(10**(amplitude_disp_proj/20))
+max_amplitude = np.max(10**(amplitude_disp_proj_dB/20))
+max_amplitude_dB = 20 * np.log10(max_amplitude)
+static_ampl = abs(np.linalg.solve(K_red, force_vector)[-2]) # First mode
+static_ampl_dB = 20 * np.log10(static_ampl)
+print(f"Static amplitude at force application point: {static_ampl:.4f} m")
+quality_factor = max_amplitude / static_ampl
 
-# print(f"Maximum amplitude at force application point: {max_amplitude:.4f} m")
+omega_1 = 2 * np.pi * frequencies_red[0]  # Natural frequency in rad/s
+nominal_xi = C_mod[0,0] / (2 * omega_1 * M_mod[0,0])
+nominal_quality_factor = 1 / (2 * nominal_xi)
 
-# desired_max_amplitude = max_amplitude/10  # in meters
 
-# static_ampl = abs(np.linalg.solve(K_mod, f_mod)[0, 0])
+print(f"Quality factors: nominal {nominal_quality_factor:.4f}, computed {quality_factor:.4f}")
 
-# print(f"Static amplitude at force application point: {static_ampl:.4f} m")
-
-# quality_factor = max_amplitude / static_ampl
-
-# print(f"Quality factor: {quality_factor:.4f}")
-
+# desired_max_amplitude = max_amplitude  # in meters
+# desired_max_amplitude_dB =  20 * np.log10(desired_max_amplitude)  # in dB
+# print(f"Desired maximum amplitude at force application point: {desired_max_amplitude:.4f} m")
 # desired_quality_factor = desired_max_amplitude / static_ampl
-
-# print(f"Desired quality factor: {desired_quality_factor:.4f}")
-
+# print(f"Quality factors: desired {desired_quality_factor:.4f}, nominal {quality_factor:.4f}")
 # desired_xi = 1 / (2 * desired_quality_factor)
-# print(f"Desired damping ratio: {desired_xi:.4f}")
 
-# C_mod_desired = 2 * desired_xi * np.sqrt(K_mod * M_mod)
-
-# C_mod_desired = 2 * desired_xi * (2*np.pi*frequencies_red[0]) * M_mod
-
+# C_mod_desired = C_mod 
+# C_mod_desired[0,0] = 2 * desired_xi * (2*np.pi*frequencies_red[0]) 
 # print(f"Desired damping coefficient: {C_mod_desired[0,0]:.6f} Ns/m")
 
 # desired_amplitude_disp_proj=np.zeros((n_samples_freq, 1))
@@ -230,17 +218,20 @@ plt.show()
 
 #     w = omega_vec[ii]
 #     desired_dimpedence_matrix_proj=-M_mod*w**2+1j*w*C_mod_desired+K_mod
-
-#     desired_eta_mod = np.linalg.inv(desired_dimpedence_matrix_proj) @ f_mod
-#     desired_displacement_modal=np.dot(Phi, desired_eta_mod)
+#     desired_eta_mod = np.linalg.solve(desired_dimpedence_matrix_proj, f_mod)
+#     desired_displacement_modal=Phi @ desired_eta_mod
 
 #     desired_amplitude_disp_proj[ii]=20*np.log10(abs(desired_displacement_modal[-2,0]))
     
 
 # ##############################
+
 # # plt.plot(omega_vec/2/np.pi,amplitude_displacement_freq, 'b', label='Full model')
-# plt.plot(omega_vec/2/np.pi,amplitude_disp_proj, 'r--', label='Reduced model')
-# plt.plot(omega_vec/2/np.pi,desired_amplitude_disp_proj, 'g--', label='Reduced model with desired damping')
+# plt.axhline(y=max_amplitude_dB, color='b', linestyle='--', label='Max Amplitude')
+# plt.axhline(y=desired_max_amplitude_dB, color='m', linestyle=':', label='Desired Max Amplitude')
+# plt.axhline(y=static_ampl_dB, color='g', linestyle='-.', label='Static Amplitude')
+# plt.plot(omega_vec/2/np.pi,amplitude_disp_proj_dB, 'r--', label='Reduced model')
+# # plt.plot(omega_vec/2/np.pi,desired_amplitude_disp_proj, 'g--', label='Reduced model with desired damping')
 # plt.xlabel('Frequency [Hz]')
 # plt.ylabel('Displacement magnitude [dB]')
 # plt.legend()

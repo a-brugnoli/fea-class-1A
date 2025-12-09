@@ -150,28 +150,22 @@ for ii in range(n_samples_freq):
 
 
 # Projection 
-
-## To be done by students
 n_mode_projection=2
 Phi = modes_red[:,:n_mode_projection]
 
-K_mod=np.dot(np.dot(np.transpose(Phi),K_red),Phi)
-M_mod=np.dot(np.dot(np.transpose(Phi),M_red),Phi)
-C_mod=np.dot(np.dot(np.transpose(Phi),C_red),Phi)
-
-print(f"C_mod: {C_mod}")
-f_mod=np.transpose(Phi)@ force_vector
+## To be done by students
+K_mod=...
+M_mod=...
+C_mod=...
+f_mod=...
 
 amplitude_disp_proj=np.zeros((n_samples_freq, 1))
 # Reponse en frequence
 for ii in range(n_samples_freq):
-
     w = omega_vec[ii]
     impedence_matrix_proj=-M_mod*w**2+1j*w*C_mod+K_mod
-
-    eta_mod = np.linalg.inv(impedence_matrix_proj) @ f_mod
-    displacement_modal=np.dot(Phi, eta_mod)
-
+    eta_mod = np.linalg.solve(impedence_matrix_proj, f_mod)
+    displacement_modal=Phi @ eta_mod
     amplitude_disp_proj[ii]=20*np.log10(abs(displacement_modal[-2,0]))
     
 ##############################
