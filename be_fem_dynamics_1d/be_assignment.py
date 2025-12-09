@@ -52,9 +52,9 @@ def compute_natural_frequencies(K, M, num_modes=4):
     ### To be done by students in class
 
     # Solve generalized eigenvalue problem
-    eigvals, eigvecs = eigh(K, M)
+    eigvals, eigvecs = ...
     # Natural frequencies in Hz
-    frequencies = np.sqrt(eigvals) / (2 * np.pi)
+    frequencies = ...
     
     return frequencies[:num_modes], eigvecs[:, :num_modes]
 
@@ -96,11 +96,6 @@ frequencies, eigenvectors_free = compute_natural_frequencies(K_global, M_global)
 print(f"Natural Frequencies (Free-Free Beam) for {n_elements} elements:")
 for ii, freq in enumerate(frequencies):
     print(f"Mode {ii+1}: {freq:.4f} Hz")
-    # plt.plot(coordinates, eigenvectors_free[::2, ii], label=f"$\omega_{ii+1}={freq:.1f}$ [rad/s]")
-    # plt.title(f"Mode {ii+1} Shape")
-    # plt.xlabel("Position along beam (m)")
-    # plt.grid()
-plt.show()
 
 dofs_bcs = [0, 1]
     
@@ -126,75 +121,66 @@ plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
 plt.show()
 
 
-# # Vecteur effort 
-# force_vector=np.zeros((M_red.shape[0],1))
 
-# force_ext = 25
-
-# ### To be done by students
-# force_vector[-2,0]=force_ext
-
-# # Amortissement 
-
-# alpha = 0.000317
-# beta = 0
-# C_red=alpha*K_red + beta*M_red
-
-# n_samples_freq = 500
-# omega_vec = 2*np.pi*np.linspace(0, 3*frequencies_red[-1], n_samples_freq)
+# Vecteur effort 
+force_ext = 25
+### To be done by students
+force_vector=...
 
 
-# # observation_matrix = np.zeros((1, M_red.shape[0]))
-# # observation_matrix[0, -2] = 1  # Observer le deplacement au
+# Amortissement 
+alpha = 0.000317
+beta = 0
+C_red=...
 
-# amplitude_displacement_freq =np.zeros((len(omega_vec), 1))
-# # Reponse en frequence
-# for ii in range(n_samples_freq):
+n_samples_freq = 500
+omega_vec = 2*np.pi*np.linspace(0, 3*frequencies_red[-1], n_samples_freq)
 
-#     w = omega_vec[ii]
-#     impedence_matrix=-M_red*w**2+1j*w*C_red+K_red
-#     disp_om=np.dot(np.linalg.inv(impedence_matrix), force_vector)
+amplitude_displacement_freq =np.zeros((len(omega_vec), 1))
+# Reponse en frequence
+for ii in range(n_samples_freq):
+    w = omega_vec[ii]
 
-#     amplitude_displacement_freq[ii]=20*np.log10(abs(disp_om[-2,0]))
+    # To be done by students
+    impedence_matrix=...
+    disp_om=...
+
+    amplitude_displacement_freq[ii]=20*np.log10(abs(disp_om[-2,0]))
 
 
-# # Projection 
 
-# ## To be done by students
+# Projection 
 
-# n_mode_projection=1
-# Phi = modes_red[:,:n_mode_projection]
+## To be done by students
+n_mode_projection=2
+Phi = modes_red[:,:n_mode_projection]
 
-# K_mod=np.dot(np.dot(np.transpose(Phi),K_red),Phi)
-# M_mod=np.dot(np.dot(np.transpose(Phi),M_red),Phi)
+K_mod=np.dot(np.dot(np.transpose(Phi),K_red),Phi)
+M_mod=np.dot(np.dot(np.transpose(Phi),M_red),Phi)
+C_mod=np.dot(np.dot(np.transpose(Phi),C_red),Phi)
 
-# C_mod=np.dot(np.dot(np.transpose(Phi),C_red),Phi)
+print(f"C_mod: {C_mod}")
+f_mod=np.transpose(Phi)@ force_vector
 
-# print(f"C_mod: {C_mod}")
-# f_mod=np.transpose(Phi)@ force_vector
+amplitude_disp_proj=np.zeros((n_samples_freq, 1))
+# Reponse en frequence
+for ii in range(n_samples_freq):
 
-# amplitude_disp_proj=np.zeros((n_samples_freq, 1))
-# # Reponse en frequence
-# for ii in range(n_samples_freq):
+    w = omega_vec[ii]
+    impedence_matrix_proj=-M_mod*w**2+1j*w*C_mod+K_mod
 
-#     w = omega_vec[ii]
-#     impedence_matrix_proj=-M_mod*w**2+1j*w*C_mod+K_mod
+    eta_mod = np.linalg.inv(impedence_matrix_proj) @ f_mod
+    displacement_modal=np.dot(Phi, eta_mod)
 
-#     eta_mod = np.linalg.inv(impedence_matrix_proj) @ f_mod
-#     displacement_modal=np.dot(Phi, eta_mod)
-
-#     amplitude_disp_proj[ii]=20*np.log10(abs(displacement_modal[-2,0]))
+    amplitude_disp_proj[ii]=20*np.log10(abs(displacement_modal[-2,0]))
     
-
-    
-
-# # ##############################
-# # plt.plot(omega_vec/2/np.pi,amplitude_displacement_freq, 'b', label='Full model')
-# # plt.plot(omega_vec/2/np.pi,amplitude_disp_proj, 'r--', label='Reduced model')
-# # plt.xlabel('Frequency [Hz]')
-# # plt.ylabel('Displacement magnitude [dB]')
-# # plt.legend()
-# # plt.show()
+##############################
+plt.plot(omega_vec/2/np.pi,amplitude_displacement_freq, 'b', label='Full model')
+plt.plot(omega_vec/2/np.pi,amplitude_disp_proj, 'r--', label='Reduced model')
+plt.xlabel('Frequency [Hz]')
+plt.ylabel('Displacement magnitude [dB]')
+plt.legend()
+plt.show()
 
 
 # max_amplitude = np.max(10**(amplitude_disp_proj/20))
