@@ -101,7 +101,7 @@ rho = 2330
 M_global = assemble_global_matrix(n_elements, \
                                   element_mass_matrix(L_element, rho, A))
 K_global = assemble_global_matrix(n_elements, \
-                                  element_stiffness_matrix(L_element, rho, A))
+                                  element_stiffness_matrix(L_element, E, I))
 
 frequencies, eigenvectors_free = compute_natural_frequencies(K_global, M_global)
 
@@ -114,28 +114,28 @@ for ii, freq in enumerate(frequencies):
     # plt.grid()
 plt.show()
 
-# dofs_bcs = [0, 1]
+dofs_bcs = [0, 1]
     
 # # Apply boundary conditions
-# K_red, M_red = apply_boundary_conditions(K_global, M_global, dofs_bcs)
+K_red, M_red = apply_boundary_conditions(K_global, M_global, dofs_bcs)
 
-# frequencies_red, modes_red = compute_natural_frequencies(K_red,  M_red)
-# n_modes = 4
+frequencies_red, modes_red = compute_natural_frequencies(K_red,  M_red)
+n_modes = 4
 
-# plt.figure()
-# eigenvectors_cantilever = restore_data(modes_red, dofs_bcs)
-# print(f"Natural Frequencies (Cantilever Beam) for {n_elements} elements:")
+plt.figure()
+eigenvectors_cantilever = restore_data(modes_red, dofs_bcs)
+print(f"Natural Frequencies (Cantilever Beam) for {n_elements} elements:")
 
-# for ii, freq in enumerate(frequencies_red):
-#     print(f"Mode {ii+1}: {freq:.4f} Hz")
+for ii, freq in enumerate(frequencies_red):
+    print(f"Mode {ii+1}: {freq:.4f} Hz")
 
-#     plt.plot(coordinates, eigenvectors_cantilever[::2, ii], label=f"$\omega_{ii+1}={freq:.4f}$ [rad/s]")
-#     plt.title(f"Mode {ii+1} Shape")
-#     plt.xlabel("Position along beam (m)")
-#     plt.grid()
-# plt.legend()
-# plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
-# plt.show()
+    plt.plot(coordinates, eigenvectors_cantilever[::2, ii], label=f"$\omega_{ii+1}={freq:.4f}$ [rad/s]")
+    plt.title(f"Mode {ii+1} Shape")
+    plt.xlabel("Position along beam (m)")
+    plt.grid()
+plt.legend()
+plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
+plt.show()
 
 
 # # Vecteur effort 
