@@ -1,11 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy.linalg as sla
-from src.solvers.time_integration import newmark
-from src.post_processing.configuration import configure_matplotlib
-from src.post_processing.plot_1d import plot_1d_vertical_displacement, animate_1d_mode
-configure_matplotlib()
-from src.utilities.restore_data import restore_data
+
 
 class Beam:
     def __init__(self, length, num_elements, material_props: dict):
@@ -67,92 +61,92 @@ class Beam:
         return M
     
     
-    def apply_boundary_conditions(self, K, M, bc_dofs):
+    def apply_boundary_conditions_matrix(self, A, bc_dofs):
         """Apply boundary conditions"""
         # Fix first and last degrees of freedom
-        mask_rows = np.ones(M.shape[0], dtype=bool)
+        mask_rows = np.ones(A.shape[0], dtype=bool)
         mask_rows[bc_dofs] = False
 
-        K_red = K[mask_rows, :][:, mask_rows]
-        M_red = M[mask_rows, :][:, mask_rows]
+        A_red = A[mask_rows, :][:, mask_rows]
 
-        return K_red, M_red
+        return A_red
     
+
+    def apply_boundary_conditions_vector(self, f, bc_dofs):
+        """Apply boundary conditions"""
+        # Fix first and last degrees of freedom
+        mask_rows = np.ones(f.shape[0], dtype=bool)
+        mask_rows[bc_dofs] = False
+
+        f_red = f[mask_rows]
+
+        return f_red
+  
+    
+
+    def constant_distributed_load(self, p):
+        """Generate global stiffness matrix using finite element method"""
+        f_local = p * np.array([
+            [self.el_size/2],
+            [self.el_size**2/12],
+            [self.el_size/2],
+            [-self.el_size**2/12]
+        ]) 
+        
+        # Assemble global stiffness matrix
+        f = np.zeros((2*(self.num_elements+1), 1))
+        for i in range(self.num_elements):
+            i_el = [2*i, 2*i+1, 2*i+2, 2*i+3]
+            f[i_el] += f_local
+        
+        return f
+    
+
+    def displacement_at_points(self, x_plot, q_sol):
+        """
+        Compute vertical displacements at specified x-coordinates using Hermite interpolation
+
+        Parameters:
+        - x_plot: Array of x-coordinates where displacements are evaluated
+        - q_sol: Solution vector of size 2*(num_elements+1), alternating [v0, θ0, v1, θ1, ...]
+        
+        Returns:
+        - v_plot: Array of vertical displacements at each x in x_plot
+        """
+
+        assert len(q_sol) == 2*(self.num_elements+1), "Solution vector size mismatch"
+
+        # Node positions along the beam
+        node_positions = np.linspace(0, self.length, self.num_elements + 1)
+
+        # Extract transverse displacements (even indices) and rotations (odd indices)
+        displacements = q_sol[0::2].flatten()
+        rotations     = q_sol[1::2].flatten()
+
+        v_plot = np.zeros(len(x_plot))
+
+        for j, x in enumerate(x_plot):
+            # Find which element x belongs to (clamp edge case x == length to last element)
+            i = min(np.searchsorted(node_positions, x, side='right') - 1,
+                    self.num_elements - 1)
+
+            # Local coordinate xi in [0, 1]
+            xi = (x - node_positions[i]) / self.el_size
+
+            # Nodal values for this element
+            v0, t0 = displacements[i],   rotations[i]
+            v1, t1 = displacements[i+1], rotations[i+1]
+            L = self.el_size
+
+            # Cubic Hermite shape functions
+            N1 =  1 - 3*xi**2 + 2*xi**3
+            N2 =  L * xi * (1 - xi)**2
+            N3 =  3*xi**2 - 2*xi**3
+            N4 =  L * xi**2 * (xi - 1)
+
+            v_plot[j] = N1*v0 + N2*t0 + N3*v1 + N4*t1
+
+        return v_plot
+
 
    
-if __name__ == "__main__":
-    # Beam parameters
-    length = 1.0  # beam length
-    E = 2.0e11  # Young's modulus (Pa)
-    I = 1.0e-6  # Moment of inertia (m^4)
-    rho = 7800  # Density (kg/m^3)
-    A = 1.0e-4  # Cross-sectional area (m^2)
-
-    properties = {
-        'E': E,
-        'I': I,
-        'rho': rho,
-        'A': A
-    }
-
-    num_elements = 200
-    coordinates = np.linspace(0, length, num_elements + 1)
-    num_dofs = 2*len(coordinates)
-
-    # Create beam analysis object
-    beam = Beam(length, num_elements, properties)
-    
-    # Generate matrices
-    K = beam.generate_stiffness_matrix()
-    M = beam.generate_mass_matrix()
-
-    # dofs_bcs = [0, 2*num_elements]
-    dofs_bcs = [0, 1]
-    
-    # Apply boundary conditions
-    K_reduced, M_reduced = beam.apply_boundary_conditions(K, M, dofs_bcs)
-    omega_squared, modes_red = sla.eigh(K_reduced, b = M_reduced)
-    omega_vec = np.sqrt(np.real(omega_squared))
-
-    eigenvectors = restore_data(modes_red, dofs_bcs)
-
-    n_modes = 4
-    for ii in range(n_modes):
-        plt.plot(coordinates, eigenvectors[::2, ii], label=f"$\omega_{ii+1}={omega_vec[ii]:.1f}$ [rad/s]")
-        plt.legend()
-
-    # num_mode = 1
-    # mode_shape = eigenvectors[::2, num_mode]
-    # omega_mode = omega_vec[num_mode]
-    # animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
-
-
-    # # Initial conditions corresponding to first mode
-    # q0 = np.zeros(num_dofs)
-    # v0 = np.zeros(num_dofs)
-    
-    # q0[::2] = eigenvectors[0::2, num_mode]
-    # q0[1::2] = eigenvectors[1::2, num_mode]
-
-    # q0_red = np.delete(q0, dofs_bcs)
-    # v0_red = np.delete(v0, dofs_bcs)
-
-    # # This part is to be done by the students:
-    # # - declare dofs subjected to bcs
-    # # - extract modes
-    # # - plot them
-    # # For clamped bcs and for free bcs
-
-
-    # # Solve dynamic response
-    # T_end = 1  # Total simulation time
-    # dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
-    # print(f"Time step: {dt:.4f} [s]")
-    # n_times = int(np.ceil(T_end/dt))
-    # q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
-
-    # q_array = restore_data(q_array_red, dofs_bcs)
-    # # Post-processing
-    # animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
-
-    plt.show()
