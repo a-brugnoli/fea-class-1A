@@ -1,8 +1,9 @@
 from src.models.beam import Beam
 import numpy as np
-import matplotlib.pyplot as plt
 from src.utilities.restore_data import restore_data
-
+import matplotlib.pyplot as plt
+from src.post_processing.configuration import configure_matplotlib
+configure_matplotlib()
 
 import os
 results_folder = "./examples/results/cantilever_beam_gravity/"
@@ -42,7 +43,7 @@ def cantilever_exact_displacement(p, F):
 
 
 x_plot = np.linspace(0, L, 30)
-w_exact = cantilever_exact_displacement(distributed_load, load_midpoint)(x_plot)
+v_exact = cantilever_exact_displacement(distributed_load, load_midpoint)(x_plot)
 
 properties = {
     'E': E,
@@ -53,15 +54,8 @@ properties = {
 
 dofs_bcs = [0, 1]
 
-n_elements_array = [2, 4, 8, 16] 
-
-
+n_elements_array = [2, 4, 6, 8] 
 fig, ax = plt.subplots()
-
-# Exact solution: solid black, slightly thicker
-ax.plot(x_plot, w_exact,
-        color='grey', linewidth=2, linestyle=':',
-        label='Exact', zorder=5)
 
 error_norm = np.zeros(len(n_elements_array))
 
@@ -81,16 +75,16 @@ for ii, num_elements in enumerate(n_elements_array):
 
     v_plot = beam.displacement_at_points(x_plot, q_full)
 
-    ax.plot(x_plot, v_plot,
+    ax.plot(x_plot, np.abs(v_plot - v_exact),
             linewidth=1.8,
             label=f'{num_elements} els')
 
     # Compute error at tip (x=L)
-    error_norm[ii] = np.linalg.norm(v_plot - w_exact)
+    error_norm[ii] = np.linalg.norm(v_plot - v_exact)
 
 ax.set_xlabel('$x \; [\mathrm{m}]$')
-ax.set_ylabel('$v \; [\mathrm{m}]$')
-ax.set_title('Cantilever Beam Deflection')
+ax.set_ylabel('$|v - v_{\mathrm{exact}}| \; [\mathrm{m}]$')
+ax.set_title('Difference between Numerical and Exact')
 ax.legend(loc='best')
 ax.grid(True, linestyle=':', linewidth=0.6, alpha=0.7)
 plt.tight_layout()
@@ -103,7 +97,7 @@ ax.set_yscale('log')
 
 ax.set_xlabel('Number of Elements')
 ax.set_ylabel('$||v - v_{\mathrm{exact}}||$')
-ax.set_title('Error Convergence')
+ax.set_title('Global Error')
 ax.grid(True, which='both', linestyle=':', linewidth=0.6, alpha=0.7)
 plt.tight_layout()
 plt.savefig(os.path.join(results_folder, "cantilever_beam_error_convergence.pdf"))

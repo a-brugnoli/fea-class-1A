@@ -48,6 +48,7 @@ dofs_bcs = [0, 1]
 K_reduced = beam.apply_boundary_conditions_matrix(K, dofs_bcs)
 M_reduced = beam.apply_boundary_conditions_matrix(M, dofs_bcs)
 omega_squared, modes_red = sla.eigh(K_reduced, b = M_reduced)
+omega_vec = np.sqrt(np.real(omega_squared))
 omega_vec_hz = np.sqrt(np.real(omega_squared))/(2*np.pi)
 
 eigenvectors = restore_data(modes_red, dofs_bcs)
@@ -62,40 +63,35 @@ for ii in range(n_modes):
 plt.legend(loc='best')
 plt.title(f"First {n_modes} Mode Shapes")
 plt.savefig(results_folder + 'mode_shapes_cantilever.pdf')
-plt.show()
 
-# num_mode = 1
+num_mode = 1
 # mode_shape = eigenvectors[::2, num_mode]
 # omega_mode = omega_vec[num_mode]
 # animation = animate_1d_mode(coordinates, mode_shape, omega_mode)    
 
 
-# # Initial conditions corresponding to first mode
-# q0 = np.zeros(num_dofs)
-# v0 = np.zeros(num_dofs)
+# Initial conditions corresponding to first mode
+q0 = np.zeros(num_dofs)
+v0 = np.zeros(num_dofs)
 
-# q0[::2] = eigenvectors[0::2, num_mode]
-# q0[1::2] = eigenvectors[1::2, num_mode]
+q0[::2] = eigenvectors[0::2, num_mode]
+q0[1::2] = eigenvectors[1::2, num_mode]
 
-# q0_red = np.delete(q0, dofs_bcs)
-# v0_red = np.delete(v0, dofs_bcs)
+q0_red = np.delete(q0, dofs_bcs)
+v0_red = np.delete(v0, dofs_bcs)
 
-# # This part is to be done by the students:
-# # - declare dofs subjected to bcs
-# # - extract modes
-# # - plot them
-# # For clamped bcs and for free bcs
+# Solve dynamic response
+T_end = .1  # Total simulation time
+dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
 
+print(f"Time step: {dt:.4f} [s]")
+n_times = int(np.ceil(T_end/dt))
+q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
 
-# # Solve dynamic response
-# T_end = 1  # Total simulation time
-# dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
-# print(f"Time step: {dt:.4f} [s]")
-# n_times = int(np.ceil(T_end/dt))
-# q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_times)
+q_array = restore_data(q_array_red, dofs_bcs)
+# Post-processing
+animation = plot_1d_vertical_displacement(dt, coordinates, q_array, \
+                                          save_path=results_folder + 'vertical_displacement.gif')
 
-# q_array = restore_data(q_array_red, dofs_bcs)
-# # Post-processing
-# animation = plot_1d_vertical_displacement(dt, coordinates, q_array)
 
 plt.show()

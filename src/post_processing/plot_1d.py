@@ -9,6 +9,7 @@ def animate_1d_mode(coordinates, mode_shape, omega_mode):
     ax.set_xlim(0, max(coordinates))
     max_ampl = max(max(mode_shape), abs(min(mode_shape)))
     ax.set_ylim(- 0.2 - max_ampl, + 0.2 + max_ampl)
+    ax.set_title(f"Mode shape with frequency {omega_mode/(2*pi):.2f} [Hz]")
     line, = ax.plot(coordinates, mode_shape, 'b', lw=2)
 
     period = pi/omega_mode
@@ -29,7 +30,7 @@ def animate_1d_mode(coordinates, mode_shape, omega_mode):
     return anim
 
 
-def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, interval=1000):
+def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, fps=30, save_path=None):
     configure_matplotlib()
     fig, ax = plt.subplots()
 
@@ -54,7 +55,7 @@ def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, interval=
 
     def update(ii):
         line.set_ydata(vertical_displacement[:, ii])
-        line.set_label(f'$t= {ii*time_step:.1f}$ [s]')
+        line.set_label(f'$t= {ii*time_step:.2f}$ [s]')
         leg = ax.legend()
 
         return line, leg
@@ -63,5 +64,15 @@ def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, interval=
     # Create animation
     anim = animation.FuncAnimation(fig, update, frames=range(0, n_times, step_animation), \
                             blit=True, interval=interval_frames)
+    if save_path:
+        if save_path.endswith('.gif'):
+            anim.save(save_path, writer='pillow', fps=fps)
+            print(f"Animation saved as GIF: {save_path}")
+        elif save_path.endswith('.mp4'):
+            anim.save(save_path, writer='ffmpeg', fps=fps)
+            print(f"Animation saved as MP4: {save_path}")
+        else:
+            print("Unsupported format. Use .gif or .mp4")
     
+    plt.tight_layout()
     return anim
