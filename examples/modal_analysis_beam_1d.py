@@ -91,7 +91,7 @@ q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_t
 q_array = restore_data(q_array_red, dofs_bcs)
 # Post-processing
 animation = plot_1d_vertical_displacement(dt, coordinates, q_array, \
-                                          save_path=results_folder + 'vertical_displacement.gif')
+                                          save_path=results_folder + f'vertical_displacement_mode_{num_mode}.gif')
 
 
 plt.show()

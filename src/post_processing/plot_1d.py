@@ -56,7 +56,7 @@ def plot_1d_vertical_displacement(time_step, coordinates, values_dofs, fps=30, s
     def update(ii):
         line.set_ydata(vertical_displacement[:, ii])
         line.set_label(f'$t= {ii*time_step:.2f}$ [s]')
-        leg = ax.legend()
+        leg = ax.legend(loc='upper left')
 
         return line, leg
 
