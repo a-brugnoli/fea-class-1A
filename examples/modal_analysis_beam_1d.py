@@ -81,7 +81,7 @@ q0_red = np.delete(q0, dofs_bcs)
 v0_red = np.delete(v0, dofs_bcs)
 
 # Solve dynamic response
-T_end = .1  # Total simulation time
+T_end = .05  # Total simulation time
 dt = 2*np.pi/omega_vec[num_mode]/10  # Time step
 
 print(f"Time step: {dt:.4f} [s]")
@@ -91,7 +91,7 @@ q_array_red, v_array_red = newmark(q0_red, v0_red, M_reduced, K_reduced, dt, n_t
 q_array = restore_data(q_array_red, dofs_bcs)
 # Post-processing
 animation = plot_1d_vertical_displacement(dt, coordinates, q_array, \
-                                          save_path=results_folder + f'vertical_displacement_mode_{num_mode}.gif')
+                                          save_path=results_folder + f'vertical_displacement_mode_{num_mode+1}.gif')
 
 
 plt.show()
