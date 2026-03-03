@@ -1,3 +1,5 @@
+from pathlib import Path
+folder = Path(__file__).resolve().parent
 
 #  Cantilever beam dimensions
 length = 1000   # Length (mm)
@@ -21,5 +23,5 @@ I_beam = (width * height**3) / 12
 tip_deflection_beam = magnitude_tip_force * length**3 / (3 * E * I_beam)
 
 import os
-results_folder = "./be_fem_statics_3d/results/"
+results_folder = str(folder) + "/results/"
 os.makedirs(results_folder, exist_ok=True)

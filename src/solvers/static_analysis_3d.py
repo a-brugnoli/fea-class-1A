@@ -100,44 +100,19 @@ class CantileverBeamStaticSolver:
         return K_reduced, F_reduced
   
     
-    # def _create_force_vector(self, force):
-    #     """
-    #     Create force vector with tip load.
-        
-    #     Returns:
-    #     --------
-    #     F : array
-    #         Global force vector with load at tip along the downward z-direction
-    #     """
-    #     # Free end: nodes at maximum x-coordinate  
-    #     x_coords = np.array(self.mesh.coordinates)[:, 0]
-
-    #     max_x = np.max(x_coords)
-
-    #     self.traction_nodes = np.where(np.isclose(x_coords, max_x,rtol=1e-10))[0]
-
-    #     value_nodal_force = - force / len(self.traction_nodes)  # Distribute load evenly
-    #     F = np.zeros(self.n_dofs)
-        
-    #     # Apply unit downward force at free end nodes
-    #     for node in self.traction_nodes:
-    #         dof_along_z = 3 * node + 2  # z-displacement DOF
-    #         F[dof_along_z] = value_nodal_force  # Distribute load among tip nodes
-            
-    #     return F
-    
     def solve(self, magnitude_tip_force=1.0):
         """
         Solve for static deflection under traction on the right surface.
         
         Returns:
         --------
-        deflections : dict
+        results : dict
             Dictionary containing:
             - 'tip_deflection': maximum deflection at tip
             - 'displacement_vector': full DOF displacement vector (N_nodes, 3)
-            - 'von_mises_stresses': array of von Mises stresses at each element (N_elements,)
+            - 'strain_tensor': array of average strain tensors at each element (N_elements, 6)
             - 'stress_tensor': array of average stress tensors at each element (N_elements, 6)
+            - 'von_mises_stresses': array of von Mises stresses at each element (N_elements,)
         """
         # Assemble global stiffness matrix
         print("Assembling stiffness matrix...")
