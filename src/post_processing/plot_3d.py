@@ -349,26 +349,11 @@ class PostProcessorHexMesh:
     
 
     def plot_slice(self, plane='x', plane_position=0.5, field_data=None, 
-                field_name="Field", cmap='viridis', figsize=(10, 8),
-                show_edges=True, edge_color='black', alpha=0.8,
-                displaced=False):
+                   field_name="Field", cmap='viridis', figsize=(10, 8),
+                   show_edges=True, edge_color='black', alpha=0.8,
+                   displaced=False):
         """
-        Plot a 2D slice through the mesh
-        
-        Parameters:
-        plane: 'x', 'y', or 'z' - normal direction of the slice plane
-        plane_position: position along the plane axis (0 to 1 for relative position)
-        field_data: optional field data for coloring (per node or per element)
-        field_name: name of the field for colorbar
-        cmap: colormap name
-        figsize: figure size
-        show_edges: whether to show face edges
-        edge_color: color of edges
-        alpha: transparency of faces
-        displaced: if True, use displaced coordinates
-        
-        Returns:
-        fig, ax: matplotlib figure and axis objects
+        Plot a 2D slice through the mesh (supports undeformed and displaced shapes)
         """
         # Determine plane axis
         plane_map = {'x': 0, 'y': 1, 'z': 2}
@@ -376,54 +361,90 @@ class PostProcessorHexMesh:
             raise ValueError("Plane must be 'x', 'y', or 'z'")
         
         plane_axis = plane_map[plane.lower()]
-        
-        # Get coordinates (with or without displacement)
-        coords = np.copy(self.coordinates)
-        if displaced and self.displacements is not None:
-            coords += self.scale_factor * self.displacements
-        
-        # Convert relative position to absolute if needed
-        if 0 <= plane_position <= 1:
-            axis_min = np.min(coords[:, plane_axis])
-            axis_max = np.max(coords[:, plane_axis])
-            plane_pos_abs = axis_min + plane_position * (axis_max - axis_min)
-        else:
-            raise ValueError("Plane position must be between 0 and 1 (relative position with respect to axis legth)")
-        
-        # Define other two axes for 2D projection
         other_axes = [i for i in range(3) if i != plane_axis]
         axis_names = ['X', 'Y', 'Z']
         
-        # Find elements that intersect the plane
+        # 1. REFERENCE COORDS: Used strictly for calculating the intersection accurately
+        ref_coords = np.copy(self.coordinates)
+        
+        # 2. PLOT COORDS: Used strictly for visual rendering
+        plot_coords = np.copy(self.coordinates)
+        if displaced and self.displacements is not None:
+            plot_coords += self.scale_factor * self.displacements
+        
+        # Convert relative position to absolute using the reference configuration
+        if 0 <= plane_position <= 1:
+            axis_min = np.min(ref_coords[:, plane_axis])
+            axis_max = np.max(ref_coords[:, plane_axis])
+            plane_pos_abs = axis_min + plane_position * (axis_max - axis_min)
+        else:
+            raise ValueError("Plane position must be between 0 and 1 (relative position with respect to axis length)")
+        
         intersecting_faces = []
         face_field_values = []
-        
         tolerance = 1e-10
         
         for elem_id in range(self.n_elements):
             elem_nodes = self.elements[elem_id]
-            elem_coords = coords[elem_nodes]
+            ref_elem_coords = ref_coords[elem_nodes]
+            plot_elem_coords = plot_coords[elem_nodes]
             
-            # Check if element spans the plane
-            elem_min = np.min(elem_coords[:, plane_axis])
-            elem_max = np.max(elem_coords[:, plane_axis])
+            # Check if element spans the plane (in reference space)
+            elem_min = np.min(ref_elem_coords[:, plane_axis])
+            elem_max = np.max(ref_elem_coords[:, plane_axis])
             
             if elem_min - tolerance <= plane_pos_abs <= elem_max + tolerance:
-                # Element intersects plane - check each face
                 for face_nodes in self.hex_faces:
-                    face_coords = elem_coords[face_nodes]
+                    ref_face_coords = ref_elem_coords[face_nodes]
                     
-                    # Check if face intersects the plane
-                    face_min = np.min(face_coords[:, plane_axis])
-                    face_max = np.max(face_coords[:, plane_axis])
+                    face_min = np.min(ref_face_coords[:, plane_axis])
+                    face_max = np.max(ref_face_coords[:, plane_axis])
                     
                     if face_min - tolerance <= plane_pos_abs <= face_max + tolerance:
-                        # Compute intersection polygon
+                        # Compute intersection on the perfectly aligned UNDEFORMED face
                         intersection_points = _intersect_face_with_plane(
-                            face_coords, plane_axis, plane_pos_abs, tolerance
+                            ref_face_coords, plane_axis, plane_pos_abs, tolerance
                         )
                         
                         if len(intersection_points) >= 3:
+                            # Map the intersection points to their displaced positions
+                            if displaced and self.displacements is not None:
+                                plot_face_coords = plot_elem_coords[face_nodes]
+                                mapped_points = []
+                                
+                                for pt in intersection_points:
+                                    dist = np.linalg.norm(ref_face_coords - pt, axis=1)
+                                    
+                                    # Case A: Intersection point is exactly a face node
+                                    if np.min(dist) < 1e-8:
+                                        mapped_points.append(plot_face_coords[np.argmin(dist)])
+                                        continue
+                                        
+                                    # Case B: Intersection point lies along a face edge
+                                    n_nodes = len(ref_face_coords)
+                                    on_edge = False
+                                    for i in range(n_nodes):
+                                        j = (i + 1) % n_nodes
+                                        A, B = ref_face_coords[i], ref_face_coords[j]
+                                        L = np.linalg.norm(A - B)
+                                        
+                                        if L > 1e-12 and abs(np.linalg.norm(pt - A) + np.linalg.norm(pt - B) - L) < 1e-8:
+                                            # Linear interpolation of displacement along the edge
+                                            t = np.linalg.norm(pt - A) / L
+                                            mapped_pt = (1 - t) * plot_face_coords[i] + t * plot_face_coords[j]
+                                            mapped_points.append(mapped_pt)
+                                            on_edge = True
+                                            break
+                                            
+                                    # Case C: Intersection is inside the face (fallback to Inverse Distance Weighting)
+                                    if not on_edge:
+                                        weights = 1.0 / (dist + 1e-16)
+                                        weights /= np.sum(weights)
+                                        mapped_pt = np.sum(plot_face_coords * weights[:, np.newaxis], axis=0)
+                                        mapped_points.append(mapped_pt)
+                                        
+                                intersection_points = np.array(mapped_points)
+                            
                             # Project to 2D
                             points_2d = intersection_points[:, other_axes]
                             intersecting_faces.append(points_2d)
@@ -432,7 +453,6 @@ class PostProcessorHexMesh:
                             if field_data is not None:
                                 field_data = np.array(field_data)
                                 if len(field_data) == self.n_nodes:
-                                    # Average field values of face nodes
                                     face_field_avg = np.mean(field_data[elem_nodes[face_nodes]])
                                 elif len(field_data) == self.n_elements:
                                     face_field_avg = field_data[elem_id]
@@ -450,7 +470,6 @@ class PostProcessorHexMesh:
         
         # Plot the intersecting faces
         if field_data is not None and face_field_values:
-            # Color by field data
             norm = Normalize(vmin=np.min(face_field_values), 
                             vmax=np.max(face_field_values))
             colormap = cm.get_cmap(cmap)
@@ -462,34 +481,29 @@ class PostProcessorHexMesh:
                                     linewidth=0.5 if show_edges else 0)
                 ax.add_patch(polygon)
             
-            # Add colorbar
             mappable = cm.ScalarMappable(norm=norm, cmap=colormap)
             mappable.set_array(face_field_values)
             cbar = plt.colorbar(mappable, ax=ax, shrink=0.8)
             cbar.set_label(field_name)
         else:
-            # Uniform coloring
             for face_2d in intersecting_faces:
                 polygon = plt.Polygon(face_2d, facecolor='lightblue', alpha=alpha,
                                     edgecolor=edge_color if show_edges else 'none',
                                     linewidth=0.5 if show_edges else 0)
                 ax.add_patch(polygon)
         
-        # Set axis properties
         ax.set_xlabel(axis_names[other_axes[0]])
         ax.set_ylabel(axis_names[other_axes[1]])
-        # ax.set_aspect('equal')
         ax.grid(True, alpha=0.3)
         
-        # Set title
         title = f"Slice at {plane.upper()} = {plane_pos_abs:.3f}"
+        if displaced:
+            title += " (Displaced)"
         if field_data is not None:
             title += f" - {field_name}"
         ax.set_title(title)
         
-        # Auto-scale axes
         ax.autoscale()
-        
         return fig, ax
 
 

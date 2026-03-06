@@ -1,7 +1,6 @@
 from src.meshing.structured_mesh import StructuredHexMesh
 from src.solvers.static_analysis_3d import CantileverBeamStaticSolver
 from src.post_processing.plot_3d import PostProcessorHexMesh
-
 import matplotlib.pyplot as plt
 import os
 import numpy as np
@@ -35,6 +34,14 @@ plotter.set_displacements(displacements, scale_factor=5)
 plotter.plot_solid(field_data=displacement_norm, 
                    field_name="Norm displacement [mm]")
 plt.savefig(os.path.join(results_folder, "plot_displacement_3d.pdf"), format='pdf')
+
+# Distortion of the section because of the Poisson effect
+plotter.set_displacements(displacements, 
+                          scale_factor=1e4  # to exaggerate the y deflection for better visualization
+                          )
+plotter.plot_slice(plane_position=0.5, field_data=displacements[:, 1],  # u_y displacement
+                   field_name="Deflection u_y [mm]", displaced=True)
+plt.savefig(os.path.join(results_folder, "plot_u_y_at_half_length.pdf"), format='pdf')
 
 # Deflection along the x-axis
 x_coords, u_z_along_beam = plotter.extract_line_profile(
