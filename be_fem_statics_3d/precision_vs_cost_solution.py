@@ -8,7 +8,7 @@ from data import length, width, height, \
                 material_props, magnitude_tip_force, \
                 tip_deflection_beam, results_folder
 
-n_elements_along_length = [25, 50, 100, 200, 400, 800]  # Different mesh refinements
+n_elements_along_length = [25, 50, 100, 200, 400, 600]  # Different mesh refinements
 n_elements_y, n_elements_z = 4, 4  # Number of elements along width and height
 
 tip_deflection_3d_vec = np.zeros(len(n_elements_along_length))
