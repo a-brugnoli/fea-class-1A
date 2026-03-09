@@ -24,10 +24,10 @@ for i, n_elements_x in enumerate(n_elements_along_length):
     # Solve
     solver = CantileverBeamStaticSolver(mesh, material_props)
     results = solver.solve(magnitude_tip_force)
+    end = time.perf_counter()
 
     tip_deflection_3d_vec[i] = results['tip_deflection']
     error_tip_deflection_vec[i] = abs(tip_deflection_3d_vec[i] - tip_deflection_beam) / abs(tip_deflection_beam)
-    end = time.perf_counter()
     time_elapsed_vec[i] = end - start
 
     if error_tip_deflection_vec[i] < tolerance:
