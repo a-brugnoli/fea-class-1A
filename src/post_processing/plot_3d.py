@@ -125,7 +125,7 @@ class PostProcessorHexMesh:
         else:
             # Simple: add all faces
             for elem_id in range(self.n_elements):
-                faces = self.get_element_faces(elem_id, displaced=displaced)
+                faces = self.get_element_faces_coords(elem_id, displaced=displaced)
                 for face in faces:
                     all_faces.append(face)
                     face_elements.append(elem_id)
@@ -497,8 +497,9 @@ class PostProcessorHexMesh:
         ax.grid(True, alpha=0.3)
         
         title = f"Slice at {plane.upper()} = {plane_pos_abs:.3f}"
-        if displaced:
-            title += " (Displaced)"
+        if displaced and self.displacements is not None:
+            title = " (Displaced). Scale factor: x{:.1f}".format(self.scale_factor)
+  
         if field_data is not None:
             title += f" - {field_name}"
         ax.set_title(title)

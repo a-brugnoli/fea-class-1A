@@ -30,14 +30,14 @@ print(f"Tip deflection 3D: {tip_deflection_3d:.1f} [mm]")
 print(f"Tip deflection (beam theory): {tip_deflection_beam:1f} [mm]")
 
 plotter = PostProcessorHexMesh(mesh)
-plotter.set_displacements(displacements, scale_factor=5)
+plotter.set_displacements(displacements)
 plotter.plot_solid(field_data=displacement_norm, 
                    field_name="Norm displacement [mm]")
 plt.savefig(os.path.join(results_folder, "plot_displacement_3d.pdf"), format='pdf')
 
 # Distortion of the section because of the Poisson effect
 plotter.set_displacements(displacements, 
-                          scale_factor=1e4  # to exaggerate the y deflection for better visualization
+                          scale_factor=1e3  # to exaggerate the y deflection for better visualization
                           )
 plotter.plot_slice(plane_position=0.5, field_data=displacements[:, 1],  # u_y displacement
                    field_name="Deflection u_y [mm]", displaced=True)

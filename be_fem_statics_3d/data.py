@@ -16,7 +16,7 @@ material_props = {
     'rho': rho,  # Density (tonne/mm^3)
 }
 # Unit force at tip (N)
-magnitude_tip_force = 1  
+magnitude_tip_force = 5  
 # Moment of area for rectangular cross-section (mm^4)
 I_beam = (width * height**3) / 12  
 # Tip deflection from beam theory (mm)
